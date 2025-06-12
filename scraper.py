@@ -261,25 +261,30 @@ class DocumentationScraper(ThrottledScraper):
             await self.rate_limiter.acquire()
 
             # Scrape the page with retry
-            async def scrape_with_browser():
+            async def scrape_with_browser_and_extract():
                 async with DocumentationCrawler(self.base_url) as crawler:
                     # Navigate to page
                     await crawler.page.goto(url, wait_until="networkidle")
 
-                    # Get page content
+                    # Extract content using the page object (handles "Show more")
+                    extract_result = await self.parser.extract_main_content_from_page(
+                        crawler.page, url
+                    )
+                    content_html, title, sibling_info = extract_result
+
+                    # Get updated HTML after any interactions
                     html = await crawler.page.content()
 
                     # Check if we got meaningful content
-                    if len(html) < 1000:
-                        raise ValueError(f"Page too small: {len(html)} bytes")
+                    if not content_html or len(html) < 1000:
+                        raise ValueError(f"Page too small or no content found: {len(html)} bytes")
 
-                    return html
+                    return content_html, title, sibling_info, html
 
             # Use retry logic for browser operations
-            html = await self.throttled_request(scrape_with_browser)
-
-            # Extract and parse content
-            content_html, title, sibling_info = self.parser.extract_main_content(html, url)
+            content_html, title, sibling_info, html = await self.throttled_request(
+                scrape_with_browser_and_extract
+            )
 
             if not content_html:
                 raise ValueError("No content found")
@@ -422,7 +427,8 @@ class DocumentationScraper(ThrottledScraper):
             return
 
         console.print(
-            f"\n[bold yellow]Final retry phase - attempting {len(failed_pages)} failed pages[/bold yellow]"
+            f"\n[bold yellow]Final retry phase - "
+            f"attempting {len(failed_pages)} failed pages[/bold yellow]"
         )
 
         # Reset circuit breaker for final attempt
@@ -452,7 +458,8 @@ class DocumentationScraper(ThrottledScraper):
                     await asyncio.sleep(backoff_delay)
 
                     console.print(
-                        f"[yellow]Retrying ({retry_count + 1}/{self.max_retry_attempts}): {url}[/yellow]"
+                        f"[yellow]Retrying ({retry_count + 1}/"
+                        f"{self.max_retry_attempts}): {url}[/yellow]"
                     )
 
                     # Reset to pending for retry

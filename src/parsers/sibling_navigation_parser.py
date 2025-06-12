@@ -16,9 +16,35 @@ class SiblingNavigationParser:
     def __init__(self, base_url: str):
         self.base_url = base_url.rstrip("/")
 
+    async def extract_sibling_info_from_page(self, page, current_url: str) -> dict[str, any]:
+        """
+        Extract sibling navigation information from the page, clicking "Show more" if needed
+
+        Args:
+            page: Playwright page object
+            current_url: Current page URL
+
+        Returns:
+            Dict containing sibling navigation info
+        """
+        # First check if there's a "Show more" button and click it
+        try:
+            show_more_btn = await page.query_selector('button[data-testid="sibling-chevron-down"]')
+            if show_more_btn:
+                logger.info("Found 'Show more' button, clicking to reveal all siblings")
+                await show_more_btn.click()
+                # Wait for the siblings to load
+                await page.wait_for_timeout(1000)  # Wait 1 second for expansion
+        except Exception as e:
+            logger.warning(f"Failed to click 'Show more' button: {e}")
+
+        # Now get the HTML and parse it
+        html = await page.content()
+        return self.extract_sibling_info(html, current_url)
+
     def extract_sibling_info(self, html: str, current_url: str) -> dict[str, any]:
         """
-        Extract sibling navigation information from the page
+        Extract sibling navigation information from the page HTML
 
         Returns:
             Dict containing:

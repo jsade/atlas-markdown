@@ -23,9 +23,17 @@ class FileSystemManager:
 
     def url_to_filepath(self, url: str, sibling_info: dict = None) -> tuple[Path, str]:
         """
-        Convert URL to local file path, using sibling info if available
+        Convert URL to local file path, using sibling info or breadcrumb data if available
         Returns: (directory_path, filename)
         """
+        # First check if we have breadcrumb data
+        if sibling_info and sibling_info.get("breadcrumb_data"):
+            breadcrumb_path, filename = self._get_path_from_breadcrumbs(
+                sibling_info["breadcrumb_data"], url
+            )
+            if breadcrumb_path and filename:
+                return breadcrumb_path, filename
+
         # If we have sibling info with a section heading, use that for folder structure
         if sibling_info and sibling_info.get("section_heading"):
             from ..parsers.sibling_navigation_parser import SiblingNavigationParser
@@ -68,6 +76,11 @@ class FileSystemManager:
         # Clean path parts (remove invalid characters)
         clean_parts = []
         for part in path_parts:
+            # Convert URL slug to proper name if it looks like a slug
+            if "-" in part and " " not in part:
+                # This looks like a URL slug, convert it
+                part = self._url_slug_to_proper_name(part)
+
             # Replace invalid filename characters
             clean_part = re.sub(r'[<>:"|?*]', "_", part)
             # Replace multiple underscores with single
@@ -255,7 +268,9 @@ This is an offline copy of the Atlassian Jira Service Management documentation.
                     # It's a file
                     title = value["title"]
                     path = value["path"]
-                    markdown += f"{indent}- [{title}]({path})\n"
+                    # Convert to wikilink format without file extension
+                    wiki_path = path.replace(".md", "")
+                    markdown += f"{indent}- [[{wiki_path}|{title}]]\n"
                 else:
                     # It's a directory
                     if name != "index.md":  # Skip index files in listing
@@ -275,6 +290,93 @@ This is an offline copy of the Atlassian Jira Service Management documentation.
             await f.write(index_content)
 
         return str(index_path)
+
+    def _get_path_from_breadcrumbs(
+        self, breadcrumb_data: dict, url: str
+    ) -> tuple[Path | None, str | None]:
+        """
+        Determine file path from breadcrumb data
+        Returns: (directory_path, filename)
+        """
+        breadcrumbs = breadcrumb_data.get("breadcrumbs", [])
+        breadcrumb_data.get("current", {})
+
+        if not breadcrumbs or len(breadcrumbs) < 2:
+            return None, None
+
+        # Build path from breadcrumbs, skipping the first two (Atlassian Support, Jira Service Management)
+        path_parts = []
+
+        for crumb in breadcrumbs[2:]:  # Skip first two levels
+            name = crumb.get("name", "")
+            if name and name not in ["Resources", "Docs"]:  # Skip these generic names
+                # Clean the name for filesystem
+                clean_name = re.sub(r'[<>:"|?*]', "_", name)
+                clean_name = clean_name.rstrip(". ")
+                path_parts.append(clean_name)
+
+        # Determine base directory
+        parsed = urlparse(url)
+        if "/docs/" in parsed.path:
+            base_dir = self.output_dir / "docs"
+        elif "/resources/" in parsed.path:
+            base_dir = self.output_dir / "resources"
+        else:
+            base_dir = self.output_dir
+
+        # Build full directory path
+        if path_parts:
+            # Use all but the last part for directory
+            if len(path_parts) > 1:
+                directory = base_dir / Path(*path_parts[:-1])
+                filename = f"{path_parts[-1]}.md"
+            else:
+                directory = base_dir
+                filename = f"{path_parts[0]}.md"
+        else:
+            directory = base_dir
+            filename = "index.md"
+
+        return directory, filename
+
+    def _url_slug_to_proper_name(self, slug: str) -> str:
+        """Convert URL slug to proper name with capitalized words
+        e.g., "what-is-a-service-project" → "What is a service project"
+        """
+        # Common words that should stay lowercase
+        lowercase_words = {
+            "a",
+            "an",
+            "and",
+            "as",
+            "at",
+            "by",
+            "for",
+            "from",
+            "in",
+            "is",
+            "of",
+            "on",
+            "or",
+            "the",
+            "to",
+            "with",
+        }
+
+        # Split by hyphens
+        words = slug.split("-")
+
+        # Process each word
+        result = []
+        for i, word in enumerate(words):
+            if word:
+                # First word or not in lowercase list - capitalize
+                if i == 0 or word.lower() not in lowercase_words:
+                    result.append(word.capitalize())
+                else:
+                    result.append(word.lower())
+
+        return " ".join(result)
 
     def get_output_directory(self) -> Path:
         """Get the output directory path"""

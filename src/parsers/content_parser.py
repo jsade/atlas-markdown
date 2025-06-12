@@ -23,6 +23,22 @@ class ContentParser:
         self.image_urls: set[str] = set()
         self.sibling_parser = SiblingNavigationParser(base_url)
 
+    async def extract_main_content_from_page(
+        self, page, page_url: str
+    ) -> tuple[str | None, str | None, dict]:
+        """Extract main content, title, and sibling navigation info from Playwright page"""
+        # Extract sibling navigation info with "Show more" handling
+        sibling_info = await self.sibling_parser.extract_sibling_info_from_page(page, page_url)
+
+        # Get the HTML content after clicking show more
+        html = await page.content()
+
+        # Use the regular extract method for the content
+        content_html, title, _ = self.extract_main_content(html, page_url)
+
+        # Return with the updated sibling info
+        return content_html, title, sibling_info
+
     def extract_content_from_initial_state(self, html: str) -> str | None:
         """Extract content from React initial state if available"""
         soup = BeautifulSoup(html, "html.parser")
@@ -108,16 +124,23 @@ class ContentParser:
             # Fallback: try to find the largest content block
             content = self._find_largest_content_block(content_soup)
 
-        # Extract title
-        title = None
-        title_selectors = ["h1", '[data-testid="topic-title"]', ".page-title", "title"]
+        # Extract title - first try meta tag
+        title = self._extract_meta_title(soup)
 
-        for selector in title_selectors:
-            element = soup.select_one(selector)
-            if element:
-                title = element.get_text(strip=True)
-                if title:
-                    break
+        # Fallback to other selectors if meta title not found
+        if not title:
+            title_selectors = ["h1", '[data-testid="topic-title"]', ".page-title", "title"]
+            for selector in title_selectors:
+                element = soup.select_one(selector)
+                if element:
+                    title = element.get_text(strip=True)
+                    if title:
+                        break
+
+        # Extract breadcrumb data
+        breadcrumb_data = self._extract_breadcrumb_data(soup)
+        if breadcrumb_data:
+            sibling_info["breadcrumb_data"] = breadcrumb_data
 
         # Clean content
         if content:
@@ -152,6 +175,51 @@ class ContentParser:
                 best_candidate = candidate
 
         return best_candidate
+
+    def _extract_meta_title(self, soup: BeautifulSoup) -> str | None:
+        """Extract title from meta tag with itemprop='name'"""
+        meta_tag = soup.find("meta", {"itemprop": "name"})
+        if meta_tag and meta_tag.get("content"):
+            return meta_tag.get("content").strip()
+        return None
+
+    def _extract_breadcrumb_data(self, soup: BeautifulSoup) -> dict | None:
+        """Extract breadcrumb data from JSON-LD script"""
+        import json
+
+        # Find script with breadcrumb data
+        scripts = soup.find_all("script", {"type": "application/ld+json"})
+
+        for script in scripts:
+            if script.string:
+                try:
+                    data = json.loads(script.string)
+                    if data.get("@type") == "BreadcrumbList":
+                        breadcrumbs = []
+                        items = data.get("itemListElement", [])
+
+                        # Sort by position to ensure correct order
+                        items.sort(key=lambda x: x.get("position", 0))
+
+                        for item in items:
+                            if "item" in item:
+                                breadcrumb = {
+                                    "position": item.get("position"),
+                                    "name": item["item"].get("name", ""),
+                                    "url": item["item"].get("@id", ""),
+                                }
+                                breadcrumbs.append(breadcrumb)
+
+                        return {
+                            "breadcrumbs": breadcrumbs,
+                            "parent": breadcrumbs[-2] if len(breadcrumbs) > 1 else None,
+                            "current": breadcrumbs[-1] if breadcrumbs else None,
+                        }
+                except (json.JSONDecodeError, KeyError) as e:
+                    logger.debug(f"Failed to parse breadcrumb JSON-LD: {e}")
+                    continue
+
+        return None
 
     def _clean_content(self, content: Tag, page_url: str):
         """Clean and prepare content for conversion"""
@@ -360,8 +428,23 @@ class ContentParser:
     def _convert_to_wikilinks(self, markdown: str, current_page_url: str) -> str:
         """Convert internal links to wikilinks with relative paths"""
 
-        # Pattern to match markdown links: [text](url)
-        link_pattern = r"\[([^\]]+)\]\(([^)]+)\)"
+        # First fix any malformed wikilinks with URLs in them
+        # Pattern: [[slug/ "url"|text]] or [[slug/"|text]]
+        malformed_pattern = r'\[\[([^|\]]+?)/?(?:\s*"[^"|\]]*")?\|([^\]]+)\]\]'
+
+        def fix_malformed(match):
+            slug = match.group(1).strip().rstrip('/"')
+            text = match.group(2)
+            # Convert slug to proper filename
+            if slug:
+                file_name = self._url_slug_to_filename(slug)
+                return f"[[{file_name}|{text}]]"
+            return match.group(0)
+
+        markdown = re.sub(malformed_pattern, fix_malformed, markdown)
+
+        # Pattern to match markdown links: [text](url) or [text](url "title")
+        link_pattern = r'\[([^\]]+)\]\(([^"\s)]+)(?:\s*"[^"]*")?\)'
 
         def convert_link(match):
             text = match.group(1)
@@ -389,8 +472,10 @@ class ContentParser:
                     # Extract the document slug (everything after docs/)
                     doc_slug = path[5:]  # Remove 'docs/' prefix
                     if doc_slug:
-                        # Use just the slug name for cleaner wikilinks
-                        return f"[[{doc_slug}|{text}]]"
+                        # Convert URL slug to proper file name format
+                        # e.g., "create-a-service" → "Create a Service"
+                        file_name = self._url_slug_to_filename(doc_slug)
+                        return f"[[{file_name}|{text}]]"
                     else:
                         return f"[[docs/index|{text}]]"
                 elif path.startswith("resources/"):
@@ -398,12 +483,14 @@ class ContentParser:
                     resource_slug = path[10:]  # Remove 'resources/' prefix
                     if resource_slug:
                         # Keep resources prefix for clarity
-                        return f"[[resources/{resource_slug}|{text}]]"
+                        file_name = self._url_slug_to_filename(resource_slug)
+                        return f"[[resources/{file_name}|{text}]]"
                     else:
                         return f"[[resources/index|{text}]]"
                 else:
                     # For other internal links, use the full path
-                    return f"[[{path}|{text}]]"
+                    file_name = self._url_slug_to_filename(path)
+                    return f"[[{file_name}|{text}]]"
 
             # Keep external links as-is
             return match.group(0)
@@ -412,6 +499,45 @@ class ContentParser:
         markdown = re.sub(link_pattern, convert_link, markdown)
 
         return markdown.strip()
+
+    def _url_slug_to_filename(self, slug: str) -> str:
+        """Convert URL slug to proper filename format
+        e.g., "create-a-service" → "Create a service"
+        """
+        # Common words that should stay lowercase (except first word)
+        lowercase_words = {
+            "a",
+            "an",
+            "and",
+            "as",
+            "at",
+            "by",
+            "for",
+            "from",
+            "in",
+            "is",
+            "of",
+            "on",
+            "or",
+            "the",
+            "to",
+            "with",
+        }
+
+        # Split by hyphens
+        words = slug.split("-")
+
+        # Process each word
+        result = []
+        for i, word in enumerate(words):
+            if word:
+                # First word or not in lowercase list - capitalize
+                if i == 0 or word.lower() not in lowercase_words:
+                    result.append(word.capitalize())
+                else:
+                    result.append(word.lower())
+
+        return " ".join(result)
 
     def _get_current_date(self) -> str:
         """Get current date in ISO format"""
@@ -438,46 +564,5 @@ class ContentParser:
             )
             # Also replace in HTML img tags if any remain
             markdown = re.sub(f'src="{escaped_url}"', f'src="{local_path}"', markdown)
-
-        return markdown
-
-    def _convert_to_wikilinks(self, markdown: str, current_page_url: str) -> str:
-        """Convert internal links to wikilinks with relative paths"""
-        # Pattern to match markdown links: [text](url)
-        link_pattern = r"\[([^\]]+)\]\(([^)]+)\)"
-
-        def convert_link(match):
-            text = match.group(1)
-            url = match.group(2)
-
-            # Skip non-HTTP links (anchors, mailto, etc.)
-            if not url.startswith(("http://", "https://")):
-                return match.group(0)
-
-            # Check if it's an internal link
-            if url.startswith(self.base_url):
-                # Extract the path after the base URL
-                path = url[len(self.base_url) :].strip("/")
-
-                # Handle different URL patterns
-                if "/docs/" in path:
-                    # Extract the document slug
-                    doc_slug = path.split("/docs/")[-1].strip("/")
-                    # Convert to wikilink format
-                    return f"[[{doc_slug}|{text}]]"
-                elif "/resources/" in path:
-                    # Extract the resource slug
-                    resource_slug = path.split("/resources/")[-1].strip("/")
-                    # Convert to wikilink format with resources prefix
-                    return f"[[resources/{resource_slug}|{text}]]"
-                else:
-                    # For other internal links, use the full path
-                    return f"[[{path}|{text}]]"
-
-            # Keep external links as-is
-            return match.group(0)
-
-        # Apply the conversion
-        markdown = re.sub(link_pattern, convert_link, markdown)
 
         return markdown
