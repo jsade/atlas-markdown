@@ -82,6 +82,14 @@ class SiblingNavigationParser:
             result["section_url"] = self._normalize_url(section_heading_elem.get("href", ""))
             logger.debug(f"Found section heading: {result['section_heading']}")
 
+            # Check if current page is the section index page
+            if result["section_url"] and (
+                result["section_url"] == current_url
+                or result["section_url"].rstrip("/") == current_url.rstrip("/")
+            ):
+                result["is_section_index"] = True
+                logger.info(f"Current page is section index for: {result['section_heading']}")
+
         # Extract all sibling items
         sibling_items = sibling_nav.find_all(
             "li", {"class": "sidebar__item", "data-testid": "sibling-section-link"}
@@ -111,14 +119,29 @@ class SiblingNavigationParser:
                 if link_elem:
                     page_title = link_elem.get_text(strip=True)
                     page_url = self._normalize_url(link_elem.get("href", ""))
-                    result["siblings"].append(
-                        {
-                            "title": page_title,
-                            "url": page_url,
-                            "is_current": False,
-                            "position": position,
-                        }
-                    )
+
+                    # Check if this link matches the current URL
+                    if page_url == current_url or page_url.rstrip("/") == current_url.rstrip("/"):
+                        # This is actually the current page
+                        result["current_page_title"] = page_title
+                        result["current_page_position"] = position
+                        result["siblings"].append(
+                            {
+                                "title": page_title,
+                                "url": page_url,
+                                "is_current": True,
+                                "position": position,
+                            }
+                        )
+                    else:
+                        result["siblings"].append(
+                            {
+                                "title": page_title,
+                                "url": page_url,
+                                "is_current": False,
+                                "position": position,
+                            }
+                        )
 
             position += 1
 
@@ -179,11 +202,23 @@ class SiblingNavigationParser:
         # Clean section heading for use as folder name
         folder_name = self._clean_for_filesystem(sibling_info["section_heading"])
 
-        # Use current page title for filename if available
-        if sibling_info["current_page_title"]:
+        # Special handling for section index pages
+        if sibling_info.get("is_section_index"):
+            # This is the main page for the section, save as index.md
+            filename = "index.md"
+            logger.info(
+                f"Section index page, using index.md for: {sibling_info['section_heading']}"
+            )
+        elif sibling_info.get("current_page_title"):
+            # Regular page within section - use the page title
             filename = self._clean_for_filesystem(sibling_info["current_page_title"]) + ".md"
+            logger.info(f"Using current_page_title for filename: {filename}")
         else:
+            # Fallback - no filename, will use URL extraction
             filename = None
+            logger.warning(
+                f"No current_page_title found for section: {sibling_info['section_heading']}"
+            )
 
         return folder_name, filename
 

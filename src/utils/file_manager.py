@@ -26,22 +26,48 @@ class FileSystemManager:
         Convert URL to local file path, using sibling info or breadcrumb data if available
         Returns: (directory_path, filename)
         """
-        # First check if we have breadcrumb data
+        logger.info(f"url_to_filepath called - URL: {url}")
+
+        # First check if we have breadcrumb data for directory structure
+        directory_from_breadcrumb = None
         if sibling_info and sibling_info.get("breadcrumb_data"):
-            breadcrumb_path, filename = self._get_path_from_breadcrumbs(
+            logger.info("Processing breadcrumb data...")
+            breadcrumb_path, _ = self._get_path_from_breadcrumbs(
                 sibling_info["breadcrumb_data"], url
             )
-            if breadcrumb_path and filename:
-                return breadcrumb_path, filename
+            if breadcrumb_path:
+                directory_from_breadcrumb = breadcrumb_path
+                logger.info(f"Using breadcrumb directory: {breadcrumb_path}")
+
+        # Always use current_page_title for filename if available
+        if sibling_info and sibling_info.get("current_page_title"):
+            filename = self._clean_for_filesystem(sibling_info["current_page_title"]) + ".md"
+            logger.info(f"Using current_page_title for filename: {filename}")
+
+            # Use breadcrumb directory if available, otherwise determine from URL
+            if directory_from_breadcrumb:
+                return directory_from_breadcrumb, filename
+            else:
+                # Determine directory from URL structure
+                parsed = urlparse(url)
+                if "/docs/" in parsed.path:
+                    return self.output_dir / "docs", filename
+                elif "/resources/" in parsed.path:
+                    return self.output_dir / "resources", filename
+                else:
+                    return self.output_dir, filename
 
         # If we have sibling info with a section heading, use that for folder structure
         if sibling_info and sibling_info.get("section_heading"):
+            logger.info(
+                f"Processing sibling info with section_heading: {sibling_info.get('section_heading')}"
+            )
             from ..parsers.sibling_navigation_parser import SiblingNavigationParser
 
             parser = SiblingNavigationParser(self.base_url)
             folder_name, filename = parser.get_folder_structure(sibling_info)
 
-            if folder_name and filename:
+            if folder_name:
                 # Determine if this is docs or resources based on URL
                 parsed = urlparse(url)
                 path = parsed.path
@@ -54,7 +80,22 @@ class FileSystemManager:
                     # Fallback to root with folder
                     directory = self.output_dir / folder_name
 
-                return directory, filename
+                # If we got a filename from sibling parser, use it
+                if filename:
+                    return directory, filename
+                else:
+                    # Fall back to extracting filename from URL
+                    # This prevents using the section heading as filename
+                    url_path = parsed.path
+                    if self.base_path and url_path.startswith(self.base_path):
+                        url_path = url_path[len(self.base_path) :].lstrip("/")
+
+                    # Extract the last part of the URL as filename
+                    path_parts = [unquote(p) for p in url_path.split("/") if p]
+                    if path_parts and path_parts[-1]:
+                        # Convert URL slug to proper name
+                        filename = self._url_slug_to_proper_name(path_parts[-1]) + ".md"
+                        return directory, filename
 
         # Fallback to original URL-based logic
         parsed = urlparse(url)
@@ -69,6 +110,15 @@ class FileSystemManager:
         # Handle empty path (homepage)
         if not path:
             return self.output_dir, "index.md"
+
+        # For top-level docs pages, use the slug as filename instead of index.md
+        # This prevents multiple pages being saved as index.md
+        if path.startswith("docs/") and path.count("/") == 1:
+            # This is a top-level docs page like docs/get-started-with-jira-service-management/
+            slug = path.split("/")[1].rstrip("/")
+            if slug:
+                filename = self._url_slug_to_proper_name(slug) + ".md"
+                return self.output_dir / "docs", filename
 
         # Split path into parts
         path_parts = [unquote(p) for p in path.split("/") if p]
@@ -114,7 +164,14 @@ class FileSystemManager:
         import shutil
         import tempfile
 
+        # Log sibling info for debugging
+        if sibling_info:
+            logger.info(
+                f"save_content called with sibling_info - section_heading: {sibling_info.get('section_heading')}, current_page_title: {sibling_info.get('current_page_title')}"
+            )
+
         directory, filename = self.url_to_filepath(url, sibling_info)
+        logger.info(f"url_to_filepath returned - directory: {directory}, filename: {filename}")
 
         # Check disk space first (require at least 100MB free)
         try:
@@ -324,18 +381,15 @@ This is an offline copy of the Atlassian Jira Service Management documentation.
         else:
             base_dir = self.output_dir
 
-        # Build full directory path
+        # Build full directory path - use breadcrumbs for folders only
         if path_parts:
-            # Use all but the last part for directory
-            if len(path_parts) > 1:
-                directory = base_dir / Path(*path_parts[:-1])
-                filename = f"{path_parts[-1]}.md"
-            else:
-                directory = base_dir
-                filename = f"{path_parts[0]}.md"
+            # Use ALL breadcrumb parts for directory structure
+            directory = base_dir / Path(*path_parts)
+            # Don't set filename here - let the current_page_title be used
+            filename = None
         else:
             directory = base_dir
-            filename = "index.md"
+            filename = None
 
         return directory, filename
 
@@ -381,3 +435,23 @@ This is an offline copy of the Atlassian Jira Service Management documentation.
     def get_output_directory(self) -> Path:
         """Get the output directory path"""
         return self.output_dir
+
+    def _clean_for_filesystem(self, text: str) -> str:
+        """Clean text for use as folder/file name"""
+        # Remove invalid filesystem characters
+        cleaned = re.sub(r'[<>:"|?*]', "", text)
+
+        # Replace forward/backslashes with dashes
+        cleaned = re.sub(r"[/\\]", "-", cleaned)
+
+        # Replace multiple spaces with single space
+        cleaned = re.sub(r"\s+", " ", cleaned)
+
+        # Remove trailing dots and spaces
+        cleaned = cleaned.strip(". ")
+
+        # Limit length
+        if len(cleaned) > 100:
+            cleaned = cleaned[:97] + "..."
+
+        return cleaned

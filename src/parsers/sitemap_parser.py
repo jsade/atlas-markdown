@@ -85,13 +85,19 @@ class SitemapParser:
             # Extract just the URLs
             urls = [info["url"] for info in url_infos]
 
-            # Filter URLs based on preferences
+            # Filter URLs based on preferences and base URL
             if include_resources:
-                # Include both /docs/ and /resources/ pages
-                filtered_urls = [url for url in urls if "/docs/" in url or "/resources/" in url]
+                # Include both /docs/ and /resources/ pages within base URL
+                filtered_urls = [
+                    url
+                    for url in urls
+                    if url.startswith(self.base_url) and ("/docs/" in url or "/resources/" in url)
+                ]
             else:
-                # Only documentation URLs
-                filtered_urls = [url for url in urls if "/docs/" in url]
+                # Only documentation URLs within base URL
+                filtered_urls = [
+                    url for url in urls if url.startswith(self.base_url) and "/docs/" in url
+                ]
 
             logger.info(
                 f"Found {len(filtered_urls)} URLs (docs: {sum(1 for u in filtered_urls if '/docs/' in u)}, resources: {sum(1 for u in filtered_urls if '/resources/' in u)})"

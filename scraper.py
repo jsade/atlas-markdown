@@ -16,6 +16,7 @@ from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn
 from rich.table import Table
 
 from src.parsers.content_parser import ContentParser
+from src.parsers.initial_state_parser import InitialStateParser
 from src.parsers.sitemap_parser import SitemapParser
 from src.scrapers.crawler import DocumentationCrawler
 from src.utils.file_manager import FileSystemManager
@@ -66,6 +67,7 @@ class DocumentationScraper(ThrottledScraper):
         self.state_manager = StateManager()
         self.file_manager = FileSystemManager(config["output"], self.base_url)
         self.parser = ContentParser(self.base_url)
+        self.initial_state_parser = InitialStateParser(self.base_url)
         self.health_monitor = HealthMonitor(config["output"])
         self.circuit_breaker = CircuitBreaker(failure_threshold=10, recovery_timeout=300)
         self.logger = logging.getLogger(__name__)
@@ -73,6 +75,7 @@ class DocumentationScraper(ThrottledScraper):
         self.max_consecutive_failures = 20
         self.max_retry_attempts = 3
         self.retry_delay_minutes = 5
+        self.site_hierarchy = None  # Will be populated from initial state
 
     async def run(self):
         """Main scraping workflow with health monitoring"""
@@ -174,13 +177,43 @@ class DocumentationScraper(ThrottledScraper):
                 self.logger.error(f"Health check error: {e}")
 
     async def discover_pages(self):
-        """Load all documentation pages from sitemap"""
+        """Load all documentation pages from initial state or sitemap"""
         with Progress(
             SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console
         ) as progress:
-            task = progress.add_task("Loading pages from sitemap...", total=None)
+            task = progress.add_task("Discovering pages...", total=None)
 
-            # Use sitemap parser instead of crawler
+            # First try to load from initial state
+            try:
+                progress.update(task, description="Loading initial state...")
+
+                # Fetch the entry point page to get initial state
+                async with DocumentationCrawler(self.base_url) as crawler:
+                    await crawler.page.goto(self.entry_point, wait_until="networkidle")
+                    html = await crawler.page.content()
+
+                # Extract hierarchy from initial state
+                self.site_hierarchy = self.initial_state_parser.extract_full_hierarchy(html)
+
+                if self.site_hierarchy and self.site_hierarchy["total_pages"] > 0:
+                    console.print(
+                        f"[green]Found {self.site_hierarchy['total_pages']} pages from initial state[/green]"
+                    )
+
+                    # Add all discovered pages to state manager
+                    for url, page_info in self.site_hierarchy["flat_map"].items():
+                        # Only add URLs within our base URL
+                        if url.startswith(self.base_url):
+                            await self.state_manager.add_page(url, title=page_info.get("title"))
+
+                    progress.update(task, completed=self.site_hierarchy["total_pages"])
+                    return
+
+            except Exception as e:
+                self.logger.warning(f"Failed to extract from initial state: {e}")
+
+            # Fallback to sitemap parser
+            progress.update(task, description="Loading pages from sitemap...")
             sitemap_parser = SitemapParser(self.base_url)
             pages = await sitemap_parser.get_all_urls(
                 include_resources=self.config.get("include_resources", False)
@@ -289,8 +322,13 @@ class DocumentationScraper(ThrottledScraper):
             if not content_html:
                 raise ValueError("No content found")
 
-            # Convert to markdown
-            markdown = self.parser.convert_to_markdown(content_html, url, title)
+            # Get page metadata from initial state if available
+            page_metadata = None
+            if self.site_hierarchy:
+                page_metadata = self.initial_state_parser.get_page_metadata(url)
+
+            # Convert to markdown with metadata
+            markdown = self.parser.convert_to_markdown(content_html, url, title, page_metadata)
 
             # Save to file system with sibling info for proper folder structure
             file_path = await self.file_manager.save_content(url, markdown, sibling_info)
@@ -315,8 +353,9 @@ class DocumentationScraper(ThrottledScraper):
             # Extract navigation links for discovery
             nav_links = self.parser.get_navigation_links(html)
             for link in nav_links:
-                # Add discovered links to state manager (it will handle duplicates)
-                await self.state_manager.add_page(link)
+                # Only add links within our base URL
+                if link.startswith(self.base_url):
+                    await self.state_manager.add_page(link)
 
             self.logger.info(f"Successfully scraped: {url}")
 

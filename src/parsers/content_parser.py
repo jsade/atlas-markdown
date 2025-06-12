@@ -33,8 +33,22 @@ class ContentParser:
         # Get the HTML content after clicking show more
         html = await page.content()
 
-        # Use the regular extract method for the content
-        content_html, title, _ = self.extract_main_content(html, page_url)
+        # Extract content without sibling info (we already have it)
+        content_html, title = self._extract_content_and_title(html, page_url)
+
+        # Add breadcrumb data to sibling info
+        soup = BeautifulSoup(html, "html.parser")
+        breadcrumb_data = self._extract_breadcrumb_data(soup)
+        if breadcrumb_data:
+            sibling_info["breadcrumb_data"] = breadcrumb_data
+
+        # Always use the extracted title (preferring H1) as the current page title
+        # This ensures we use the actual page title, not the section heading
+        if title:
+            sibling_info["current_page_title"] = title
+            logger.info(f"Set current_page_title from extracted title: {title}")
+        else:
+            logger.warning(f"No title extracted for {page_url}")
 
         # Return with the updated sibling info
         return content_html, title, sibling_info
@@ -88,12 +102,52 @@ class ContentParser:
 
         return None
 
-    def extract_main_content(self, html: str, page_url: str) -> tuple[str | None, str | None, dict]:
-        """Extract main content, title, and sibling navigation info from HTML"""
+    def _extract_metadata_from_initial_state(self, html: str) -> dict[str, str | None]:
+        """Extract title and description from React initial state"""
+        metadata = {"title": None, "description": None}
         soup = BeautifulSoup(html, "html.parser")
 
-        # Extract sibling navigation info
-        sibling_info = self.sibling_parser.extract_sibling_info(html, page_url)
+        # Look for the React initial state
+        for script in soup.find_all("script"):
+            if script.string and "__APP_INITIAL_STATE__" in script.string:
+                try:
+                    # Extract JSON from script
+                    match = re.search(
+                        r"window\.__APP_INITIAL_STATE__\s*=\s*(/\*.*?\*/\s*)?({.*?});",
+                        script.string,
+                        re.DOTALL,
+                    )
+                    if match:
+                        json_str = match.group(2)
+                        # Remove comments if present
+                        json_str = re.sub(r"/\*.*?\*/", "", json_str, flags=re.DOTALL)
+                        state_data = json.loads(json_str)
+
+                        # Use the initial state parser to extract metadata
+                        from ..parsers.initial_state_parser import InitialStateParser
+
+                        parser = InitialStateParser(self.base_url)
+                        metadata = parser.extract_topic_metadata(state_data)
+                        if metadata["title"]:
+                            logger.debug(f"Found title from initial state: {metadata['title']}")
+                        if metadata["description"]:
+                            logger.debug(
+                                f"Found description from initial state: {metadata['description']}"
+                            )
+
+                except (json.JSONDecodeError, KeyError) as e:
+                    logger.debug(f"Failed to parse initial state for metadata: {e}")
+
+        return metadata
+
+    def _extract_content_and_title(self, html: str, page_url: str) -> tuple[str | None, str | None]:
+        """Extract main content and title from HTML (internal method without sibling info)"""
+        soup = BeautifulSoup(html, "html.parser")
+
+        # First try to get metadata from initial state
+        state_metadata = self._extract_metadata_from_initial_state(html)
+        title_from_state = state_metadata["title"]
+        self.current_page_description = state_metadata["description"]  # Store for later use
 
         # Try to extract from initial state first
         state_content = self.extract_content_from_initial_state(html)
@@ -124,12 +178,27 @@ class ContentParser:
             # Fallback: try to find the largest content block
             content = self._find_largest_content_block(content_soup)
 
-        # Extract title - first try meta tag
-        title = self._extract_meta_title(soup)
+        # Extract H1 as the primary source of truth for page title
+        h1_title = None
+        h1_element = content_soup.select_one("h1")
+        if h1_element:
+            h1_title = h1_element.get_text(strip=True)
+            logger.debug(f"Found H1 title: {h1_title}")
 
-        # Fallback to other selectors if meta title not found
+        # Use H1 as primary title source, then fall back to other sources
+        title = h1_title
+
+        # If no H1, use title from initial state if available
         if not title:
-            title_selectors = ["h1", '[data-testid="topic-title"]', ".page-title", "title"]
+            title = title_from_state
+
+        # If still no title, try meta tag
+        if not title:
+            title = self._extract_meta_title(soup)
+
+        # Final fallback to other selectors
+        if not title:
+            title_selectors = ['[data-testid="topic-title"]', ".page-title", "title"]
             for selector in title_selectors:
                 element = soup.select_one(selector)
                 if element:
@@ -137,18 +206,29 @@ class ContentParser:
                     if title:
                         break
 
-        # Extract breadcrumb data
+        # Clean content
+        if content:
+            self._clean_content(content, page_url)
+            return str(content), title
+        else:
+            logger.warning(f"No main content found for {page_url}")
+            return None, title
+
+    def extract_main_content(self, html: str, page_url: str) -> tuple[str | None, str | None, dict]:
+        """Extract main content, title, and sibling navigation info from HTML"""
+        # Extract sibling navigation info
+        sibling_info = self.sibling_parser.extract_sibling_info(html, page_url)
+
+        # Extract content and title
+        content_html, title = self._extract_content_and_title(html, page_url)
+
+        # Add breadcrumb data to sibling info
+        soup = BeautifulSoup(html, "html.parser")
         breadcrumb_data = self._extract_breadcrumb_data(soup)
         if breadcrumb_data:
             sibling_info["breadcrumb_data"] = breadcrumb_data
 
-        # Clean content
-        if content:
-            self._clean_content(content, page_url)
-            return str(content), title, sibling_info
-        else:
-            logger.warning(f"No main content found for {page_url}")
-            return None, title, sibling_info
+        return content_html, title, sibling_info
 
     def _find_largest_content_block(self, soup: BeautifulSoup) -> Tag | None:
         """Find the largest content block as fallback"""
@@ -223,6 +303,37 @@ class ContentParser:
 
     def _clean_content(self, content: Tag, page_url: str):
         """Clean and prepare content for conversion"""
+        # First, remove any content before the first H1
+        h1 = content.find("h1")
+        if h1:
+            # Find the container that holds the H1 and remove everything before it
+            # We need to go up the tree to find siblings at the appropriate level
+            h1_container = h1.parent
+
+            # Keep going up until we find a container that has siblings before it
+            while (
+                h1_container
+                and h1_container != content
+                and len(list(h1_container.previous_siblings)) == 0
+            ):
+                h1_container = h1_container.parent
+
+            if h1_container and h1_container != content:
+                # Remove all content before the H1 container
+                removed_count = 0
+                for element in list(h1_container.previous_siblings):
+                    if hasattr(element, "decompose"):
+                        element.decompose()
+                        removed_count += 1
+                    elif isinstance(element, str) and element.strip():
+                        element.extract()
+                        removed_count += 1
+
+                if removed_count > 0:
+                    logger.debug(
+                        f"Removed {removed_count} elements before H1 container for {page_url}"
+                    )
+
         # Remove navigation elements
         nav_selectors = [
             "nav",
@@ -337,9 +448,13 @@ class ContentParser:
                 link["data-internal"] = "true"
 
     def convert_to_markdown(
-        self, html_content: str, page_url: str, title: str | None = None
+        self,
+        html_content: str,
+        page_url: str,
+        title: str | None = None,
+        page_metadata: dict | None = None,
     ) -> str:
-        """Convert HTML content to Markdown"""
+        """Convert HTML content to Markdown with enhanced frontmatter"""
         # Parse HTML
         soup = BeautifulSoup(html_content, "html.parser")
 
@@ -347,16 +462,67 @@ class ContentParser:
         for tag in soup(["script", "style"]):
             tag.decompose()
 
+        # IMPORTANT: Re-apply the H1 cleaning here since we have a new soup object
+        # The cleaning done in _extract_content_and_title was on a different object
+        h1 = soup.find("h1")
+        if h1:
+            # Find the container that holds the H1 and remove everything before it
+            # We need to go up the tree to find siblings at the appropriate level
+            h1_container = h1.parent
+
+            # Keep going up until we find a container that has siblings before it
+            while h1_container and len(list(h1_container.previous_siblings)) == 0:
+                h1_container = h1_container.parent
+
+            if h1_container:
+                # Remove all content before the H1 container
+                removed_count = 0
+                for element in list(h1_container.previous_siblings):
+                    if hasattr(element, "decompose"):
+                        element.decompose()
+                        removed_count += 1
+                    elif isinstance(element, str) and element.strip():
+                        element.extract()
+                        removed_count += 1
+
+                if removed_count > 0:
+                    logger.debug(
+                        f"Removed {removed_count} elements before H1 container in markdown conversion for {page_url}"
+                    )
+
         # Custom conversion options - using default tags instead of specifying convert list
         markdown = md(str(soup), heading_style="ATX", bullets="-", code_language="")
 
-        # Add title if provided
-        if title:
+        # Only add title as H1 if it's not already in the content
+        if title and not soup.find("h1"):
             markdown = f"# {title}\n\n{markdown}"
 
-        # Add metadata
-        metadata = f"---\nurl: {page_url}\nscrape_date: {self._get_current_date()}\n---\n\n"
-        markdown = metadata + markdown
+        # Build enhanced frontmatter
+        frontmatter = {"url": page_url, "scrape_date": self._get_current_date()}
+
+        # Add metadata from initial state if available
+        if page_metadata:
+            if page_metadata.get("title"):
+                frontmatter["title"] = page_metadata["title"]
+            if page_metadata.get("description"):
+                frontmatter["description"] = page_metadata["description"]
+            if page_metadata.get("id"):
+                frontmatter["id"] = page_metadata["id"]
+            if page_metadata.get("slug"):
+                frontmatter["slug"] = page_metadata["slug"]
+            if page_metadata.get("childList"):
+                frontmatter["childList"] = page_metadata["childList"]
+
+        # Also add description from current page extraction if available
+        if hasattr(self, "current_page_description") and self.current_page_description:
+            if not frontmatter.get("description"):
+                frontmatter["description"] = self.current_page_description
+
+        # Format frontmatter as YAML
+        import yaml
+
+        metadata_str = yaml.dump(frontmatter, default_flow_style=False, sort_keys=False)
+        markdown = f"---\n{metadata_str}---\n\n{markdown}"
 
         # Clean up markdown
         markdown = self._clean_markdown(markdown)
