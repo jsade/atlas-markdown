@@ -15,13 +15,9 @@ ENV/
 *.swo
 .DS_Store
 
-# Project specific
-output/
-*.db
-*.sqlite
-.env
-logs/
-*.log
+# AI
+.claude
+CLAUDE.md
 
 # Testing
 .coverage
@@ -34,3 +30,17 @@ htmlcov/
 dist/
 build/
 *.egg-info/
+
+# Database files
+*.db
+*.sqlite
+
+# Environment variables
+.env
+
+# Logging
+logs/
+*.log
+
+# Output folders (output/, output1/, etc.)
+output*/

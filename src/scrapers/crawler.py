@@ -256,9 +256,14 @@ class DocumentationCrawler:
 
         return links
 
-    async def crawl_page(self, url: str) -> set[str]:
-        """Crawl a single page and extract new URLs"""
+    async def crawl_page(self, url: str) -> tuple[set[str], str | None]:
+        """Crawl a single page and extract new URLs
+
+        Returns:
+            Tuple of (new_urls, final_url) where final_url is the URL after redirects
+        """
         new_urls = set()
+        final_url = None
 
         try:
             # Navigate to the page with timeout
@@ -269,7 +274,12 @@ class DocumentationCrawler:
             # Handle various response scenarios
             if not response:
                 logger.warning(f"No response received for {url}")
-                return new_urls
+                return new_urls, final_url
+
+            # Capture the final URL after redirects
+            final_url = self.page.url
+            if final_url != url:
+                logger.info(f"Redirect detected: {url} -> {final_url}")
 
             if response.status == 429:
                 # Handle rate limiting
@@ -287,7 +297,7 @@ class DocumentationCrawler:
 
             if response.status >= 400:
                 logger.warning(f"HTTP {response.status} for {url}")
-                return new_urls
+                return new_urls, final_url
 
             # Wait for content to load
             try:
@@ -313,6 +323,7 @@ class DocumentationCrawler:
             # Try with reduced wait
             try:
                 await self.page.goto(url, wait_until="domcontentloaded", timeout=15000)
+                final_url = self.page.url
                 nav_links = await self.extract_navigation_links()
                 page_links = await self.extract_page_links()
                 all_links = set(nav_links + page_links)
@@ -328,7 +339,7 @@ class DocumentationCrawler:
             if self.page.is_closed():
                 await self._handle_page_crash()
 
-        return new_urls
+        return new_urls, final_url
 
     async def discover_all_pages(self, entry_point: str | None = None) -> list[str]:
         """Discover all documentation pages starting from entry point"""
@@ -356,7 +367,7 @@ class DocumentationCrawler:
             logger.info(f"Crawling: {current_url} ({len(self.discovered_urls)} discovered)")
 
             # Discover new URLs from this page
-            new_urls = await self.crawl_page(current_url)
+            new_urls, final_url = await self.crawl_page(current_url)
 
             # Add new URLs to queue
             for url in new_urls:

@@ -1,6 +1,6 @@
-# Atlassian Service Management Documentation Scraper
+# Atlassian Documentation Scraper
 
-A command-line tool for macOS that autonomously downloads and converts all Atlassian Jira Service Management (Cloud) documentation to Markdown format.
+A command-line tool that autonomously downloads and converts the selected Atlassian documentation from https://support.atlassian.com/ to Markdown format.
 
 ## Quick Start
 

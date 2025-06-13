@@ -375,6 +375,50 @@ class ContentParser:
         for element in content.select('script, style, noscript, link[rel="stylesheet"]'):
             element.decompose()
 
+        # Convert panel elements to Obsidian callouts before other processing
+        panel_elements = content.select("div[data-panel-type]")
+        for panel in panel_elements:
+            panel_type = panel.get("data-panel-type", "info")
+
+            # Extract content from the panel
+            content_div = panel.select_one(".ak-editor-panel__content")
+            if content_div:
+                # Create a new div with special marker for callout conversion
+                from bs4 import BeautifulSoup
+
+                temp_soup = BeautifulSoup("", "html.parser")
+                callout_div = temp_soup.new_tag("div")
+                callout_div["data-obsidian-callout"] = panel_type
+
+                # Move all content from panel to the new div
+                for child in list(content_div.children):
+                    callout_div.append(child)
+
+                # Replace the panel with our marker div
+                panel.replace_with(callout_div)
+                logger.debug(f"Converted {panel_type} panel to callout marker for {page_url}")
+
+        # Remove Confluence macro elements (details, expand, etc.)
+        details_elements = content.select('div[data-macro-name="details"]')
+        if details_elements:
+            logger.debug(f"Removing {len(details_elements)} details macro elements from {page_url}")
+            for element in details_elements:
+                element.decompose()
+
+        # Also remove other common Confluence macros
+        macro_elements = content.select("div[data-macro-name]")
+        removed_macros = []
+        for element in macro_elements:
+            macro_name = element.get("data-macro-name", "")
+            if macro_name in ["details", "expand", "info", "warning", "note", "panel"]:
+                removed_macros.append(macro_name)
+                element.decompose()
+
+        if removed_macros:
+            logger.debug(
+                f"Removed Confluence macros from {page_url}: {', '.join(set(removed_macros))}"
+            )
+
         # Remove edit buttons and internal UI elements
         ui_selectors = [
             '[data-testid*="edit"]',
@@ -489,6 +533,37 @@ class ContentParser:
                     logger.debug(
                         f"Removed {removed_count} elements before H1 container in markdown conversion for {page_url}"
                     )
+
+        # Convert panel divs to Obsidian callouts before markdown conversion
+        for panel in soup.select("div[data-obsidian-callout]"):
+            callout_type = panel.get("data-obsidian-callout", "info")
+
+            # Map panel types to Obsidian callout types
+            type_mapping = {
+                "info": "info",
+                "warning": "warning",
+                "error": "error",
+                "success": "success",
+                "note": "note",
+            }
+
+            obsidian_type = type_mapping.get(callout_type, "info")
+
+            # Create a blockquote with the callout syntax
+            blockquote = soup.new_tag("blockquote")
+            blockquote["class"] = "obsidian-callout"
+
+            # Add the callout header
+            header = soup.new_tag("p")
+            header.string = f"[!{obsidian_type}]"
+            blockquote.append(header)
+
+            # Move all content from panel to blockquote
+            for child in list(panel.children):
+                blockquote.append(child)
+
+            # Replace panel with blockquote
+            panel.replace_with(blockquote)
 
         # Custom conversion options - using default tags instead of specifying convert list
         markdown = md(str(soup), heading_style="ATX", bullets="-", code_language="")

@@ -284,7 +284,7 @@ This is an offline copy of the Atlassian Jira Service Management documentation.
 
 """
 
-        # Group pages by directory
+        # Group pages by directory - only include docs/ content
         page_tree = {}
 
         for page in pages:
@@ -298,8 +298,30 @@ This is an offline copy of the Atlassian Jira Service Management documentation.
             if not file_path:
                 continue
 
-            # Parse directory structure
-            parts = Path(file_path).parts
+            # Convert to Path and get relative path from output directory
+            full_path = Path(file_path)
+            try:
+                # If file_path is already relative, use it as is
+                if not full_path.is_absolute():
+                    relative_path = file_path
+                else:
+                    # Get relative path from output directory
+                    # Handle both string and Path output_dir
+                    output_dir_path = Path(self.output_dir).resolve()
+                    full_path_resolved = full_path.resolve()
+                    relative_path = full_path_resolved.relative_to(output_dir_path)
+            except ValueError:
+                # If path is not relative to output_dir, skip it
+                logger.warning(f"Skipping file not in output directory: {file_path}")
+                continue
+
+            # Only include docs/ content
+            relative_str = str(relative_path).replace("\\", "/")
+            if not relative_str.startswith("docs/"):
+                continue
+
+            # Parse directory structure from docs/ onwards
+            parts = Path(relative_str).parts[1:]  # Skip 'docs' part
 
             # Build tree structure
             current = page_tree
@@ -309,16 +331,17 @@ This is an offline copy of the Atlassian Jira Service Management documentation.
                 current = current[part]
 
             # Add file to tree
-            filename = parts[-1] if parts else file_path
-            current[filename] = {"title": title, "url": url, "path": file_path}
+            filename = parts[-1] if parts else Path(relative_str).name
+            current[filename] = {"title": title, "url": url, "path": "/" + relative_str}
 
-        # Generate index content
-        def generate_tree_markdown(tree, level=0):
+        # Generate index content with proper heading hierarchy
+        def generate_tree_markdown(tree, level=2):  # Start with ## (H2)
             markdown = ""
-            indent = "  " * level
 
             # Sort items: directories first, then files
-            items = sorted(tree.items(), key=lambda x: (isinstance(x[1], dict), x[0]))
+            items = sorted(
+                tree.items(), key=lambda x: (isinstance(x[1], dict) and "title" not in x[1], x[0])
+            )
 
             for name, value in items:
                 if isinstance(value, dict) and "title" in value:
@@ -327,19 +350,26 @@ This is an offline copy of the Atlassian Jira Service Management documentation.
                     path = value["path"]
                     # Convert to wikilink format without file extension
                     wiki_path = path.replace(".md", "")
-                    markdown += f"{indent}- [[{wiki_path}|{title}]]\n"
+                    # No indentation for list items - always start at column 0
+                    markdown += f"- [[{wiki_path}|{title}]]\n"
                 else:
                     # It's a directory
                     if name != "index.md":  # Skip index files in listing
-                        markdown += f"{indent}- **{name}/**\n"
-                        markdown += generate_tree_markdown(value, level + 1)
+                        # Use heading for directories
+                        heading_prefix = "#" * level
+                        # Clean directory name for display
+                        display_name = name
+                        markdown += f"\n{heading_prefix} {display_name}\n\n"
+                        markdown += generate_tree_markdown(value, min(level + 1, 6))  # Max H6
 
             return markdown
 
         index_content += generate_tree_markdown(page_tree)
 
         # Add statistics
-        index_content += f"\n\n---\n\nTotal pages: {len(pages)}\n"
+        # Count pages that were successfully included in the index
+        doc_count = self._count_pages_in_tree(page_tree)
+        index_content += f"\n\n---\n\nTotal documentation pages: {doc_count}\n"
 
         # Save index
         index_path = self.output_dir / "index.md"
@@ -455,3 +485,16 @@ This is an offline copy of the Atlassian Jira Service Management documentation.
             cleaned = cleaned[:97] + "..."
 
         return cleaned
+
+    def _count_pages_in_tree(self, tree: dict) -> int:
+        """Count total pages in the tree structure"""
+        count = 0
+        for value in tree.values():
+            if isinstance(value, dict):
+                if "title" in value:
+                    # It's a file
+                    count += 1
+                else:
+                    # It's a directory, recurse
+                    count += self._count_pages_in_tree(value)
+        return count

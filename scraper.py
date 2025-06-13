@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """
-Atlassian Jira Service Management Documentation Scraper
+Atlassian Documentation Scraper
 Main entry point for the command-line tool
 """
 
 import asyncio
 import logging
+import os
 import sys
+from pathlib import Path
 
 import click
 from dotenv import load_dotenv
@@ -17,12 +19,15 @@ from rich.table import Table
 
 from src.parsers.content_parser import ContentParser
 from src.parsers.initial_state_parser import InitialStateParser
+from src.parsers.link_resolver import LinkResolver
 from src.parsers.sitemap_parser import SitemapParser
 from src.scrapers.crawler import DocumentationCrawler
 from src.utils.file_manager import FileSystemManager
 from src.utils.health_monitor import CircuitBreaker, HealthMonitor
 from src.utils.image_downloader import ImageDownloader
+from src.utils.markdown_linter import MarkdownLinter
 from src.utils.rate_limiter import RateLimiter, RetryConfig, ThrottledScraper
+from src.utils.redirect_handler import RedirectHandler
 
 # Import our modules
 from src.utils.state_manager import PageStatus, StateManager
@@ -31,6 +36,87 @@ from src.utils.state_manager import PageStatus, StateManager
 load_dotenv()
 
 console = Console()
+
+
+def validate_environment():
+    """Validate required environment variables with robust error handling"""
+    required_vars = {
+        "BASE_URL": "https://support.atlassian.com/jira-service-management-cloud",
+        "OUTPUT_DIR": "./output",
+        "WORKERS": "5",
+        "REQUEST_DELAY": "1.5",
+        "USER_AGENT": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        "LOG_LEVEL": "INFO",
+    }
+
+    env_config = {}
+    missing_vars = []
+    invalid_vars = []
+
+    for var, default in required_vars.items():
+        value = os.getenv(var, default).strip()
+
+        if not value:
+            missing_vars.append(var)
+            continue
+
+        # Validate specific variable types
+        if var == "WORKERS":
+            try:
+                value = int(value)
+                if value < 1 or value > 50:
+                    invalid_vars.append(f"{var} must be between 1 and 50 (got {value})")
+                    value = int(default)
+            except ValueError:
+                invalid_vars.append(f"{var} must be an integer (got '{value}')")
+                value = int(default)
+
+        elif var == "REQUEST_DELAY":
+            try:
+                value = float(value)
+                if value < 0.1 or value > 60:
+                    invalid_vars.append(f"{var} must be between 0.1 and 60 seconds (got {value})")
+                    value = float(default)
+            except ValueError:
+                invalid_vars.append(f"{var} must be a number (got '{value}')")
+                value = float(default)
+
+        elif var == "BASE_URL":
+            # Validate URL format
+            if not value.startswith(("http://", "https://")):
+                invalid_vars.append(f"{var} must start with http:// or https:// (got '{value}')")
+                value = default
+            # Remove trailing slash for consistency
+            value = value.rstrip("/")
+
+        elif var == "LOG_LEVEL":
+            valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+            if value.upper() not in valid_levels:
+                invalid_vars.append(f"{var} must be one of {valid_levels} (got '{value}')")
+                value = default
+            else:
+                value = value.upper()
+
+        env_config[var] = value
+
+    # Report issues
+    if missing_vars or invalid_vars:
+        console.print("[bold red]Environment Configuration Issues:[/bold red]")
+
+        if missing_vars:
+            console.print("\n[yellow]Missing environment variables (using defaults):[/yellow]")
+            for var in missing_vars:
+                console.print(f"  - {var} = {required_vars[var]}")
+
+        if invalid_vars:
+            console.print("\n[red]Invalid environment variables:[/red]")
+            for issue in invalid_vars:
+                console.print(f"  - {issue}")
+
+        console.print("\n[dim]Check your .env file or environment variables[/dim]")
+        console.print("[dim]Example: cp .env.example .env[/dim]\n")
+
+    return env_config
 
 
 def setup_logging(verbose: bool):
@@ -52,10 +138,11 @@ def setup_logging(verbose: bool):
 class DocumentationScraper(ThrottledScraper):
     """Main scraper orchestrator"""
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, env_config: dict):
         # Initialize configuration
         self.config = config
-        self.base_url = "https://support.atlassian.com/jira-service-management-cloud"
+        self.env_config = env_config
+        self.base_url = env_config["BASE_URL"]
         self.entry_point = f"{self.base_url}/resources/"
 
         # Initialize rate limiter
@@ -68,6 +155,8 @@ class DocumentationScraper(ThrottledScraper):
         self.file_manager = FileSystemManager(config["output"], self.base_url)
         self.parser = ContentParser(self.base_url)
         self.initial_state_parser = InitialStateParser(self.base_url)
+        self.link_resolver = LinkResolver(self.base_url)
+        self.redirect_handler = RedirectHandler()
         self.health_monitor = HealthMonitor(config["output"])
         self.circuit_breaker = CircuitBreaker(failure_threshold=10, recovery_timeout=300)
         self.logger = logging.getLogger(__name__)
@@ -76,6 +165,7 @@ class DocumentationScraper(ThrottledScraper):
         self.max_retry_attempts = 3
         self.retry_delay_minutes = 5
         self.site_hierarchy = None  # Will be populated from initial state
+        self.create_redirect_stubs = config.get("create_redirect_stubs", False)
 
     async def run(self):
         """Main scraping workflow with health monitoring"""
@@ -94,6 +184,12 @@ class DocumentationScraper(ThrottledScraper):
 
                 # Start a new run
                 run_id = await self.state_manager.start_run()
+
+                # Load existing URL mappings for link resolution
+                await self.link_resolver.load_from_state_manager(self.state_manager)
+                self.logger.info(
+                    f"Link resolver loaded with {self.link_resolver.get_stats()['url_mappings']} mappings"
+                )
 
                 # Start health monitoring task
                 health_task = asyncio.create_task(self._periodic_health_check())
@@ -127,6 +223,14 @@ class DocumentationScraper(ThrottledScraper):
 
                     # Phase 5: Generate index
                     await self.generate_index()
+
+                    # Phase 6: Fix all wiki links with proper filenames
+                    if not self.config["dry_run"]:
+                        await self.fix_wiki_links()
+
+                    # Phase 7: Lint all markdown files
+                    if not self.config["dry_run"] and self.config.get("lint", True):
+                        await self.lint_markdown_files()
 
                     # Complete the run
                     await self.state_manager.complete_run(run_id)
@@ -299,9 +403,35 @@ class DocumentationScraper(ThrottledScraper):
                     # Navigate to page
                     await crawler.page.goto(url, wait_until="networkidle")
 
+                    # Check for redirects
+                    final_url = crawler.page.url
+                    if final_url != url:
+                        self.logger.info(f"Redirect detected: {url} -> {final_url}")
+                        self.redirect_handler.add_redirect(url, final_url)
+
+                        # Check if we've already scraped the final URL
+                        final_status = await self.state_manager.get_page_status(final_url)
+                        if final_status == PageStatus.COMPLETED.value:
+                            self.logger.info(f"Redirect target already scraped: {final_url}")
+
+                            # Get the file path of the already scraped page
+                            canonical_file = self.redirect_handler.get_canonical_file(final_url)
+                            if not canonical_file:
+                                # Look it up from the state manager
+                                cursor = await self.state_manager._db.execute(
+                                    "SELECT file_path FROM pages WHERE url = ?", (final_url,)
+                                )
+                                row = await cursor.fetchone()
+                                if row and row["file_path"]:
+                                    canonical_file = row["file_path"]
+                                    self.redirect_handler.add_final_url(final_url, canonical_file)
+
+                            # Skip scraping this page - it's a duplicate
+                            return None, None, None, None, final_url, canonical_file
+
                     # Extract content using the page object (handles "Show more")
                     extract_result = await self.parser.extract_main_content_from_page(
-                        crawler.page, url
+                        crawler.page, final_url or url
                     )
                     content_html, title, sibling_info = extract_result
 
@@ -312,12 +442,38 @@ class DocumentationScraper(ThrottledScraper):
                     if not content_html or len(html) < 1000:
                         raise ValueError(f"Page too small or no content found: {len(html)} bytes")
 
-                    return content_html, title, sibling_info, html
+                    return content_html, title, sibling_info, html, final_url, None
 
             # Use retry logic for browser operations
-            content_html, title, sibling_info, html = await self.throttled_request(
-                scrape_with_browser_and_extract
-            )
+            result = await self.throttled_request(scrape_with_browser_and_extract)
+            content_html, title, sibling_info, html, final_url, canonical_file = result
+
+            # Check if this was a redirect to already scraped content
+            if content_html is None and canonical_file:
+                self.logger.info(f"Skipping duplicate from redirect: {url}")
+
+                # Update link resolver to map both URLs to the same file
+                self.link_resolver.add_page_mapping(url, title or "Redirected page", canonical_file)
+
+                # Optionally create a redirect stub file
+                if self.create_redirect_stubs:
+                    redirect_content = self.redirect_handler.create_redirect_markdown(
+                        url, final_url, canonical_file
+                    )
+                    stub_path = await self.file_manager.save_content(url, redirect_content)
+                    await self.state_manager.update_page_status(
+                        url, PageStatus.COMPLETED, file_path=stub_path
+                    )
+                else:
+                    # Mark as completed without creating a file
+                    await self.state_manager.update_page_status(
+                        url, PageStatus.COMPLETED, file_path=canonical_file
+                    )
+
+                # Reset failure counter on success
+                self.circuit_breaker.record_success()
+                self.failed_pages_count = 0
+                return
 
             if not content_html:
                 raise ValueError("No content found")
@@ -331,19 +487,47 @@ class DocumentationScraper(ThrottledScraper):
             markdown = self.parser.convert_to_markdown(content_html, url, title, page_metadata)
 
             # Save to file system with sibling info for proper folder structure
-            file_path = await self.file_manager.save_content(url, markdown, sibling_info)
+            # Use the final URL (after redirects) for saving content
+            save_url = final_url or url
+            file_path = await self.file_manager.save_content(save_url, markdown, sibling_info)
 
             # Update page title if we found one
             if title:
                 await self.state_manager._db.execute(
-                    "UPDATE pages SET title = ? WHERE url = ?", (title, url)
+                    "UPDATE pages SET title = ? WHERE url = ?", (title, save_url)
                 )
                 await self.state_manager._db.commit()
 
             # Mark as completed
             await self.state_manager.update_page_status(
-                url, PageStatus.COMPLETED, file_path=file_path
+                save_url, PageStatus.COMPLETED, file_path=file_path
             )
+
+            # Add URL to filename mapping for link resolution
+            self.link_resolver.add_page_mapping(save_url, title, file_path)
+
+            # Track the final URL in redirect handler
+            self.redirect_handler.add_final_url(save_url, file_path)
+
+            # If this was accessed via redirect, also update the original URL
+            if final_url and final_url != url:
+                # Map the redirect URL to the same file
+                self.link_resolver.add_page_mapping(url, title, file_path)
+
+                # Optionally create a redirect stub for the original URL
+                if self.create_redirect_stubs:
+                    redirect_content = self.redirect_handler.create_redirect_markdown(
+                        url, final_url, file_path
+                    )
+                    stub_path = await self.file_manager.save_content(url, redirect_content)
+                    await self.state_manager.update_page_status(
+                        url, PageStatus.COMPLETED, file_path=stub_path
+                    )
+                else:
+                    # Mark original URL as completed pointing to same file
+                    await self.state_manager.update_page_status(
+                        url, PageStatus.COMPLETED, file_path=file_path
+                    )
 
             # Track images for later download
             images = self.parser.get_images()
@@ -533,6 +717,108 @@ class DocumentationScraper(ThrottledScraper):
         index_path = await self.file_manager.create_index([dict(p) for p in pages])
         console.print(f"[green]Generated index: {index_path}[/green]")
 
+    async def fix_wiki_links(self):
+        """Fix all wiki links to use proper filenames"""
+        console.print("\n[blue]Fixing wiki links...[/blue]")
+
+        # Reload mappings to ensure we have all pages
+        await self.link_resolver.load_from_state_manager(self.state_manager)
+
+        # Get all completed pages
+        cursor = await self.state_manager._db.execute(
+            "SELECT url, file_path FROM pages WHERE status = ?", (PageStatus.COMPLETED.value,)
+        )
+        pages = await cursor.fetchall()
+
+        fixed_count = 0
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TaskProgressColumn(),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Fixing wiki links", total=len(pages))
+
+            for page in pages:
+                if not page["file_path"]:
+                    progress.update(task, advance=1)
+                    continue
+
+                file_path = self.file_manager.output_dir / page["file_path"]
+                page_url = page["url"]
+
+                try:
+                    # Read file content
+                    with open(file_path, encoding="utf-8") as f:
+                        content = f.read()
+
+                    # Fix wiki links using the resolver
+                    updated_content = self.link_resolver.convert_markdown_links(content, page_url)
+
+                    # Write back if changed
+                    if content != updated_content:
+                        with open(file_path, "w", encoding="utf-8") as f:
+                            f.write(updated_content)
+                        fixed_count += 1
+
+                except Exception as e:
+                    self.logger.error(f"Failed to fix links in {file_path}: {e}")
+
+                progress.update(task, advance=1)
+
+        if fixed_count > 0:
+            console.print(f"[green]Fixed wiki links in {fixed_count} files[/green]")
+        else:
+            console.print("[yellow]No wiki links needed fixing[/yellow]")
+
+    async def lint_markdown_files(self):
+        """Lint and fix all markdown files"""
+        console.print("\n[blue]Linting markdown files...[/blue]")
+
+        linter = MarkdownLinter(auto_fix=True)
+        output_path = Path(self.file_manager.output_dir)
+
+        # Run linting with progress
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Linting markdown files...", total=None)
+
+            # Lint all files and fix in place
+            issues = await asyncio.to_thread(linter.lint_directory, output_path, fix_in_place=True)
+
+            progress.update(task, completed=1)
+
+        # Generate and display report
+        if issues:
+            report = linter.generate_report(issues)
+
+            # Save report
+            report_path = output_path / "linting_report.md"
+            with open(report_path, "w", encoding="utf-8") as f:
+                f.write(report)
+
+            console.print(f"\n[yellow]Fixed issues in {len(issues)} files[/yellow]")
+            console.print(f"[dim]Linting report saved to: {report_path}[/dim]")
+
+            # Show summary of issue types
+            issue_types = {}
+            for file_issues in issues.values():
+                for issue in file_issues:
+                    issue_types[issue.issue_type] = issue_types.get(issue.issue_type, 0) + 1
+
+            if issue_types:
+                console.print("\n[bold]Issues fixed by type:[/bold]")
+                for issue_type, count in sorted(
+                    issue_types.items(), key=lambda x: x[1], reverse=True
+                ):
+                    console.print(f"  - {issue_type}: {count}")
+        else:
+            console.print("[green]No linting issues found![/green]")
+
     async def show_statistics(self):
         """Display final statistics"""
         stats = await self.state_manager.get_statistics()
@@ -590,9 +876,23 @@ class DocumentationScraper(ThrottledScraper):
 
 
 @click.command()
-@click.option("--output", "-o", default="./output", help="Output directory for documentation")
-@click.option("--workers", "-w", default=5, type=int, help="Number of concurrent workers")
-@click.option("--delay", "-d", default=1.5, type=float, help="Delay between requests in seconds")
+@click.option(
+    "--output", "-o", default=None, help="Output directory (default: from .env or ./output)"
+)
+@click.option(
+    "--workers",
+    "-w",
+    default=None,
+    type=int,
+    help="Number of concurrent workers (default: from .env or 5)",
+)
+@click.option(
+    "--delay",
+    "-d",
+    default=None,
+    type=float,
+    help="Delay between requests in seconds (default: from .env or 1.5)",
+)
 @click.option("--resume", is_flag=True, help="Resume from previous state")
 @click.option("--dry-run", is_flag=True, help="Show what would be scraped without downloading")
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
@@ -602,34 +902,58 @@ class DocumentationScraper(ThrottledScraper):
     default=False,
     help="Include /resources/ pages in addition to /docs/",
 )
-def scrape(output, workers, delay, resume, dry_run, verbose, include_resources):
+@click.option("--no-lint", is_flag=True, help="Skip markdown linting/auto-fixing phase")
+@click.option(
+    "--create-redirect-stubs",
+    is_flag=True,
+    help="Create stub files for redirected URLs (default: skip duplicates)",
+)
+def scrape(
+    output,
+    workers,
+    delay,
+    resume,
+    dry_run,
+    verbose,
+    include_resources,
+    no_lint,
+    create_redirect_stubs,
+):
     """Scrape Atlassian Jira Service Management documentation"""
 
-    # Setup logging
-    setup_logging(verbose)
+    # Validate environment first
+    env_config = validate_environment()
+
+    # Setup logging with configured level
+    setup_logging(verbose or env_config["LOG_LEVEL"] == "DEBUG")
 
     # Show banner
     console.print("\n[bold blue]Atlassian Documentation Scraper[/bold blue]")
-    console.print(f"[dim]Output directory: {output}[/dim]")
-    console.print(f"[dim]Workers: {workers} | Delay: {delay}s[/dim]")
+    console.print(f"[dim]Base URL: {env_config['BASE_URL']}[/dim]")
+    console.print(f"[dim]Output directory: {output or env_config['OUTPUT_DIR']}[/dim]")
+    console.print(
+        f"[dim]Workers: {workers or env_config['WORKERS']} | Delay: {delay or env_config['REQUEST_DELAY']}s[/dim]"
+    )
     console.print(f"[dim]Include resources: {include_resources}[/dim]\n")
 
     if dry_run:
         console.print("[yellow]🔍 DRY RUN MODE - No files will be downloaded[/yellow]\n")
 
-    # Create configuration
+    # Create configuration, using environment defaults if not specified
     config = {
-        "output": output,
-        "workers": workers,
-        "delay": delay,
+        "output": output or env_config["OUTPUT_DIR"],
+        "workers": workers or env_config["WORKERS"],
+        "delay": delay or env_config["REQUEST_DELAY"],
         "resume": resume,
         "dry_run": dry_run,
         "verbose": verbose,
         "include_resources": include_resources,
+        "lint": not no_lint,
+        "create_redirect_stubs": create_redirect_stubs,
     }
 
     # Run scraper
-    scraper = DocumentationScraper(config)
+    scraper = DocumentationScraper(config, env_config)
 
     try:
         asyncio.run(scraper.run())
