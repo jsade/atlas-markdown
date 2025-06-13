@@ -57,6 +57,7 @@ class MarkdownLinter:
         content = self._fix_callout_formatting(content)
         content = self._fix_list_indentation(content)
         content = self._fix_list_empty_lines(content)
+        content = self._fix_numbered_list_sequence(content)
         content = self._ensure_final_newline(content)
 
         return content, self.issues
@@ -462,8 +463,8 @@ class MarkdownLinter:
         while i < len(lines):
             line = lines[i]
 
-            # Check if this is a list item
-            is_list_item = re.match(r"^([-*+])\s+", line.strip())
+            # Check if this is a list item (bullet or numbered)
+            is_list_item = re.match(r"^([-*+]|\d+\.)\s+", line.strip())
 
             if is_list_item:
                 # Add the list item
@@ -481,7 +482,7 @@ class MarkdownLinter:
                         # Empty line
                         empty_lines_count += 1
                         j += 1
-                    elif re.match(r"^([-*+])\s+", next_stripped):
+                    elif re.match(r"^([-*+]|\d+\.)\s+", next_stripped):
                         # Found another list item after empty line(s)
                         if empty_lines_count > 0:
                             # Skip the empty lines
@@ -511,6 +512,56 @@ class MarkdownLinter:
                 fixed_lines.append(line)
 
             i += 1
+
+        return "\n".join(fixed_lines)
+
+    def _fix_numbered_list_sequence(self, content: str) -> str:
+        """Fix numbered list sequences to be consecutive (1, 2, 3, etc.)."""
+        lines = content.split("\n")
+        fixed_lines = []
+        current_number = 0
+        in_numbered_list = False
+
+        for i, line in enumerate(lines):
+            # Check if this is a numbered list item
+            match = re.match(r"^(\d+)\.\s+(.*)$", line.strip())
+
+            if match:
+                old_number = match.group(1)
+                list_content = match.group(2)
+
+                if not in_numbered_list:
+                    # Starting a new numbered list
+                    in_numbered_list = True
+                    current_number = 1
+                else:
+                    # Continuing numbered list
+                    current_number += 1
+
+                # Create the fixed line with correct numbering
+                fixed_line = f"{current_number}. {list_content}"
+
+                if line.strip() != fixed_line:
+                    self.issues.append(
+                        LintIssue(
+                            line_number=i + 1,
+                            issue_type="numbered_list_sequence",
+                            description=f"Fixed list numbering from {old_number} to {current_number}",
+                            original=line.strip(),
+                            fixed=fixed_line,
+                        )
+                    )
+                    fixed_lines.append(fixed_line)
+                else:
+                    fixed_lines.append(line)
+            else:
+                # Not a numbered list item
+                stripped = line.strip()
+                # Check if we're ending the numbered list (non-empty, non-list line)
+                if in_numbered_list and stripped and not stripped.startswith("   "):
+                    in_numbered_list = False
+                    current_number = 0
+                fixed_lines.append(line)
 
         return "\n".join(fixed_lines)
 
