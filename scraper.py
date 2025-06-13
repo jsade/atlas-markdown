@@ -47,6 +47,17 @@ def validate_environment():
         "REQUEST_DELAY": "1.5",
         "USER_AGENT": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
         "LOG_LEVEL": "INFO",
+        "LOG_ENABLED": "false",
+        "LOG_DIR": "logs/",
+        # Safety constraints
+        "MAX_CRAWL_DEPTH": "5",
+        "MAX_PAGES": "1000",
+        "MAX_RUNTIME_MINUTES": "120",
+        "MAX_FILE_SIZE_MB": "50",
+        "DOMAIN_RESTRICTION": "product",
+        "MAX_RETRIES": "3",
+        "MAX_CONSECUTIVE_FAILURES": "20",
+        "DRY_RUN_DEFAULT": "false",
     }
 
     env_config = {}
@@ -82,12 +93,54 @@ def validate_environment():
                 value = float(default)
 
         elif var == "BASE_URL":
-            # Validate URL format
-            if not value.startswith(("http://", "https://")):
-                invalid_vars.append(f"{var} must start with http:// or https:// (got '{value}')")
-                value = default
+            # Strict validation for Atlassian support URLs only
+            required_prefix = "https://support.atlassian.com/"
+
             # Remove trailing slash for consistency
             value = value.rstrip("/")
+
+            # Check if it starts with the required prefix
+            if not value.startswith(required_prefix):
+                invalid_vars.append(
+                    f"{var} must start with '{required_prefix}' (got '{value}')\n"
+                    f"      This scraper is designed specifically for Atlassian support documentation."
+                )
+                value = default
+
+            # Check if it has an endpoint after the base (not just root)
+            elif value == required_prefix.rstrip("/"):
+                invalid_vars.append(
+                    f"{var} must include a specific product endpoint after '{required_prefix}'\n"
+                    f"      Examples:\n"
+                    f"        - {required_prefix}jira-service-management-cloud\n"
+                    f"        - {required_prefix}jira-software-cloud\n"
+                    f"        - {required_prefix}confluence-cloud\n"
+                    f"        - {required_prefix}jira-work-management"
+                )
+                value = default
+
+            # Additional validation for known valid endpoints
+            valid_endpoints = [
+                "jira-service-management-cloud",
+                "jira-software-cloud",
+                "confluence-cloud",
+                "jira-work-management",
+                "trello",
+                "bitbucket-cloud",
+                "statuspage",
+            ]
+
+            endpoint = value.replace(required_prefix, "")
+            if "/" in endpoint:
+                # Extract just the product part
+                endpoint = endpoint.split("/")[0]
+
+            if endpoint and endpoint not in valid_endpoints:
+                console.print(
+                    f"[yellow]Warning: '{endpoint}' is not a known Atlassian product endpoint.[/yellow]\n"
+                    f"[yellow]Known endpoints: {', '.join(valid_endpoints)}[/yellow]\n"
+                    f"[yellow]The scraper may not work correctly with unknown endpoints.[/yellow]"
+                )
 
         elif var == "LOG_LEVEL":
             valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
@@ -96,6 +149,61 @@ def validate_environment():
                 value = default
             else:
                 value = value.upper()
+
+        elif var in [
+            "MAX_CRAWL_DEPTH",
+            "MAX_PAGES",
+            "MAX_RUNTIME_MINUTES",
+            "MAX_FILE_SIZE_MB",
+            "MAX_RETRIES",
+            "MAX_CONSECUTIVE_FAILURES",
+        ]:
+            try:
+                value = int(value)
+                if value < 0:
+                    invalid_vars.append(f"{var} must be non-negative (got {value})")
+                    value = int(default)
+
+                # Specific range validations
+                if var == "MAX_CRAWL_DEPTH" and value > 10:
+                    invalid_vars.append(f"{var} should not exceed 10 for safety (got {value})")
+                    value = int(default)
+                elif var == "MAX_RETRIES" and value > 10:
+                    invalid_vars.append(f"{var} should not exceed 10 (got {value})")
+                    value = int(default)
+                elif var == "MAX_CONSECUTIVE_FAILURES" and value < 5:
+                    invalid_vars.append(f"{var} should be at least 5 (got {value})")
+                    value = int(default)
+
+            except ValueError:
+                invalid_vars.append(f"{var} must be an integer (got '{value}')")
+                value = int(default)
+
+        elif var == "DOMAIN_RESTRICTION":
+            valid_modes = ["product", "any-atlassian", "off"]
+            # Handle legacy values
+            if value == "strict":
+                value = "product"
+            elif value == "same-product":
+                value = "any-atlassian"
+
+            if value not in valid_modes:
+                invalid_vars.append(f"{var} must be one of {valid_modes} (got '{value}')")
+                value = default
+
+        elif var == "DRY_RUN_DEFAULT":
+            if value.lower() not in ["true", "false"]:
+                invalid_vars.append(f"{var} must be 'true' or 'false' (got '{value}')")
+                value = default
+            else:
+                value = value.lower() == "true"
+
+        elif var == "LOG_ENABLED":
+            if value.lower() not in ["true", "false"]:
+                invalid_vars.append(f"{var} must be 'true' or 'false' (got '{value}')")
+                value = default
+            else:
+                value = value.lower() == "true"
 
         env_config[var] = value
 
@@ -119,15 +227,40 @@ def validate_environment():
     return env_config
 
 
-def setup_logging(verbose: bool):
-    """Configure logging with Rich handler"""
+def setup_logging(verbose: bool, env_config: dict):
+    """Configure logging with Rich handler and optional file logging"""
     level = logging.DEBUG if verbose else logging.INFO
+
+    handlers = [RichHandler(console=console, rich_tracebacks=True)]
+
+    # Add file handler if logging is enabled
+    if env_config.get("LOG_ENABLED", False):
+        log_dir = Path(env_config.get("LOG_DIR", "logs/"))
+        log_dir.mkdir(exist_ok=True)
+
+        # Create timestamped log filename
+        from datetime import datetime
+
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        log_file = log_dir / f"scraper_{timestamp}.log"
+
+        # Create file handler
+        file_handler = logging.FileHandler(log_file, encoding="utf-8")
+        file_handler.setLevel(level)
+        # Use standard formatter for file logs (not Rich formatting)
+        file_formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+        )
+        file_handler.setFormatter(file_formatter)
+        handlers.append(file_handler)
+
+        console.print(f"[green]Logging to file: {log_file}[/green]")
 
     logging.basicConfig(
         level=level,
         format="%(message)s",
         datefmt="[%X]",
-        handlers=[RichHandler(console=console, rich_tracebacks=True)],
+        handlers=handlers,
     )
 
     # Suppress some noisy loggers
@@ -147,7 +280,7 @@ class DocumentationScraper(ThrottledScraper):
 
         # Initialize rate limiter
         rate_limiter = RateLimiter(rate=1.0 / config["delay"], burst=config["workers"])
-        retry_config = RetryConfig(max_attempts=3, initial_delay=2.0)
+        retry_config = RetryConfig(max_attempts=env_config["MAX_RETRIES"], initial_delay=2.0)
         super().__init__(rate_limiter, retry_config)
 
         # Initialize components
@@ -161,15 +294,29 @@ class DocumentationScraper(ThrottledScraper):
         self.circuit_breaker = CircuitBreaker(failure_threshold=10, recovery_timeout=300)
         self.logger = logging.getLogger(__name__)
         self.failed_pages_count = 0
-        self.max_consecutive_failures = 20
-        self.max_retry_attempts = 3
+
+        # Safety constraints from environment
+        self.max_consecutive_failures = env_config["MAX_CONSECUTIVE_FAILURES"]
+        self.max_retry_attempts = env_config["MAX_RETRIES"]
+        self.max_crawl_depth = env_config["MAX_CRAWL_DEPTH"]
+        self.max_pages = env_config["MAX_PAGES"]
+        self.max_runtime_minutes = env_config["MAX_RUNTIME_MINUTES"]
+        self.max_file_size_mb = env_config["MAX_FILE_SIZE_MB"]
+        self.domain_restriction = env_config["DOMAIN_RESTRICTION"]
+
         self.retry_delay_minutes = 5
         self.site_hierarchy = None  # Will be populated from initial state
         self.create_redirect_stubs = config.get("create_redirect_stubs", False)
 
+        # Track runtime and pages scraped
+        self.start_time = None
+        self.pages_scraped = 0
+
     async def run(self):
         """Main scraping workflow with health monitoring"""
         try:
+            self.start_time = asyncio.get_event_loop().time()
+
             async with self.state_manager:
                 # Initial health check
                 health = await self.health_monitor.check_system_health()
@@ -184,6 +331,21 @@ class DocumentationScraper(ThrottledScraper):
 
                 # Start a new run
                 run_id = await self.state_manager.start_run()
+
+                # Show safety constraints
+                console.print("\n[dim]Safety Constraints:[/dim]")
+                if self.max_crawl_depth > 0:
+                    console.print(f"[dim]  Max crawl depth: {self.max_crawl_depth}[/dim]")
+                if self.max_pages > 0:
+                    console.print(f"[dim]  Max pages: {self.max_pages}[/dim]")
+                if self.max_runtime_minutes > 0:
+                    console.print(f"[dim]  Max runtime: {self.max_runtime_minutes} minutes[/dim]")
+                domain_desc = {
+                    "product": "Same product only",
+                    "any-atlassian": "Any Atlassian product",
+                    "off": "No restriction",
+                }.get(self.domain_restriction, self.domain_restriction)
+                console.print(f"[dim]  Domain restriction: {domain_desc}[/dim]\n")
 
                 # Load existing URL mappings for link resolution
                 await self.link_resolver.load_from_state_manager(self.state_manager)
@@ -255,10 +417,25 @@ class DocumentationScraper(ThrottledScraper):
             raise
 
     async def _periodic_health_check(self):
-        """Periodically check system health"""
+        """Periodically check system health and runtime constraints"""
         while True:
             try:
                 await asyncio.sleep(60)  # Check every minute
+
+                # Check runtime limit
+                if self.max_runtime_minutes > 0:
+                    elapsed_minutes = (asyncio.get_event_loop().time() - self.start_time) / 60
+                    if elapsed_minutes >= self.max_runtime_minutes:
+                        self.logger.warning(
+                            f"Runtime limit reached ({self.max_runtime_minutes} minutes)"
+                        )
+                        console.print(
+                            f"\n[yellow]Runtime limit of {self.max_runtime_minutes} minutes reached. Stopping scraper...[/yellow]"
+                        )
+                        raise RuntimeError(
+                            f"Runtime limit of {self.max_runtime_minutes} minutes exceeded"
+                        )
+
                 health = await self.health_monitor.check_system_health()
 
                 if not health["healthy"]:
@@ -277,8 +454,30 @@ class DocumentationScraper(ThrottledScraper):
 
             except asyncio.CancelledError:
                 break
+            except RuntimeError:
+                raise  # Re-raise runtime limit errors
             except Exception as e:
                 self.logger.error(f"Health check error: {e}")
+
+    def is_url_allowed(self, url: str) -> bool:
+        """Check if URL is allowed based on domain restriction"""
+        if self.domain_restriction == "off":
+            return True
+
+        # Always reject non-Atlassian URLs
+        if not url.startswith("https://support.atlassian.com/"):
+            return False
+
+        if self.domain_restriction == "product":
+            # Product mode: only allow URLs under the same product path
+            return url.startswith(self.base_url)
+
+        elif self.domain_restriction == "any-atlassian":
+            # Any-atlassian mode: allow any support.atlassian.com URL
+            return True
+
+        else:  # Default to most restrictive
+            return url.startswith(self.base_url)
 
     async def discover_pages(self):
         """Load all documentation pages from initial state or sitemap"""
@@ -305,10 +504,21 @@ class DocumentationScraper(ThrottledScraper):
                     )
 
                     # Add all discovered pages to state manager
+                    added_count = 0
                     for url, page_info in self.site_hierarchy["flat_map"].items():
-                        # Only add URLs within our base URL
-                        if url.startswith(self.base_url):
-                            await self.state_manager.add_page(url, title=page_info.get("title"))
+                        # Check URL restrictions
+                        if self.is_url_allowed(url):
+                            await self.state_manager.add_page(
+                                url, title=page_info.get("title"), crawl_depth=0
+                            )
+                            added_count += 1
+
+                            # Check page limit
+                            if self.max_pages > 0 and added_count >= self.max_pages:
+                                console.print(
+                                    f"[yellow]Reached max pages limit ({self.max_pages})[/yellow]"
+                                )
+                                break
 
                     progress.update(task, completed=self.site_hierarchy["total_pages"])
                     return
@@ -337,12 +547,24 @@ class DocumentationScraper(ThrottledScraper):
 
     async def scrape_pages(self):
         """Scrape all pending pages"""
-        # Get pending pages (excluding recent failures)
-        all_pending = await self.state_manager.get_pending_pages()
+        # Check if we've hit the page limit
+        if self.max_pages > 0 and self.pages_scraped >= self.max_pages:
+            console.print(
+                f"[yellow]Already scraped {self.pages_scraped} pages (limit: {self.max_pages})[/yellow]"
+            )
+            return
+
+        # Get pending pages with depth limit
+        max_depth = self.max_crawl_depth if self.max_crawl_depth > 0 else None
+        all_pending = await self.state_manager.get_pending_pages(max_depth=max_depth)
 
         # Filter out pages that failed recently and need delay
         pending = []
         for page in all_pending:
+            # Check page limit
+            if self.max_pages > 0 and self.pages_scraped >= self.max_pages:
+                break
+
             if page.get("retry_count", 0) == 0:
                 # First attempt, include it
                 pending.append(page)
@@ -382,6 +604,18 @@ class DocumentationScraper(ThrottledScraper):
 
     async def scrape_single_page(self, url: str):
         """Scrape a single page with circuit breaker"""
+        # Check page limit
+        if self.max_pages > 0 and self.pages_scraped >= self.max_pages:
+            self.logger.info(f"Page limit reached ({self.max_pages}), skipping {url}")
+            await self.state_manager.update_page_status(
+                url, PageStatus.SKIPPED, error_message="Page limit reached"
+            )
+            return
+
+        # Get page info for depth
+        page_info = await self.state_manager.get_page_info(url)
+        current_depth = page_info.get("crawl_depth", 0) if page_info else 0
+
         # Check circuit breaker
         if not self.circuit_breaker.can_attempt():
             self.logger.warning(f"Circuit breaker open, skipping {url}")
@@ -536,12 +770,25 @@ class DocumentationScraper(ThrottledScraper):
 
             # Extract navigation links for discovery
             nav_links = self.parser.get_navigation_links(html)
-            for link in nav_links:
-                # Only add links within our base URL
-                if link.startswith(self.base_url):
-                    await self.state_manager.add_page(link)
+            next_depth = current_depth + 1
 
-            self.logger.info(f"Successfully scraped: {url}")
+            # Only add links if we haven't reached max depth
+            if self.max_crawl_depth == 0 or next_depth <= self.max_crawl_depth:
+                for link in nav_links:
+                    # Check URL restrictions
+                    if self.is_url_allowed(link):
+                        await self.state_manager.add_page(
+                            link, crawl_depth=next_depth, parent_url=url
+                        )
+            else:
+                self.logger.debug(
+                    f"Max crawl depth reached ({self.max_crawl_depth}), not adding links from {url}"
+                )
+
+            self.logger.info(f"Successfully scraped: {url} (depth: {current_depth})")
+
+            # Increment pages scraped counter
+            self.pages_scraped += 1
 
             # Record success in circuit breaker
             self.circuit_breaker.record_success()
@@ -925,7 +1172,7 @@ def scrape(
     env_config = validate_environment()
 
     # Setup logging with configured level
-    setup_logging(verbose or env_config["LOG_LEVEL"] == "DEBUG")
+    setup_logging(verbose or env_config["LOG_LEVEL"] == "DEBUG", env_config)
 
     # Show banner
     console.print("\n[bold blue]Atlassian Documentation Scraper[/bold blue]")
@@ -940,6 +1187,13 @@ def scrape(
         console.print("[yellow]🔍 DRY RUN MODE - No files will be downloaded[/yellow]\n")
 
     # Create configuration, using environment defaults if not specified
+    # Apply DRY_RUN_DEFAULT if dry_run not explicitly set
+    if not dry_run and env_config["DRY_RUN_DEFAULT"]:
+        console.print(
+            "[yellow]Note: DRY_RUN_DEFAULT is enabled in .env. Use --dry-run=false to override.[/yellow]\n"
+        )
+        dry_run = True
+
     config = {
         "output": output or env_config["OUTPUT_DIR"],
         "workers": workers or env_config["WORKERS"],

@@ -73,6 +73,8 @@ class StateManager:
                         file_path TEXT,
                         error_message TEXT,
                         retry_count INTEGER DEFAULT 0,
+                        crawl_depth INTEGER DEFAULT 0,
+                        parent_url TEXT,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         completed_at TIMESTAMP
@@ -87,6 +89,21 @@ class StateManager:
                     ON pages(status, retry_count)
                 """
                 )
+
+                # Add crawl_depth column if it doesn't exist (for existing databases)
+                cursor = await self._db.execute("PRAGMA table_info(pages)")
+                columns = await cursor.fetchall()
+                column_names = [col[1] for col in columns]
+
+                if "crawl_depth" not in column_names:
+                    await self._db.execute(
+                        "ALTER TABLE pages ADD COLUMN crawl_depth INTEGER DEFAULT 0"
+                    )
+                    logger.info("Added crawl_depth column to existing database")
+
+                if "parent_url" not in column_names:
+                    await self._db.execute("ALTER TABLE pages ADD COLUMN parent_url TEXT")
+                    logger.info("Added parent_url column to existing database")
 
                 await self._db.execute(
                     """
@@ -174,7 +191,13 @@ class StateManager:
         )
         await self._db.commit()
 
-    async def add_page(self, url: str, title: str | None = None):
+    async def add_page(
+        self,
+        url: str,
+        title: str | None = None,
+        crawl_depth: int = 0,
+        parent_url: str | None = None,
+    ):
         """Add a page to be scraped with retry on lock"""
         max_retries = 3
 
@@ -182,10 +205,10 @@ class StateManager:
             try:
                 await self._db.execute(
                     """
-                    INSERT OR IGNORE INTO pages (url, title, status)
-                    VALUES (?, ?, ?)
+                    INSERT OR IGNORE INTO pages (url, title, status, crawl_depth, parent_url)
+                    VALUES (?, ?, ?, ?, ?)
                 """,
-                    (url, title, PageStatus.PENDING.value),
+                    (url, title, PageStatus.PENDING.value, crawl_depth, parent_url),
                 )
                 await self._db.commit()
                 break
@@ -201,6 +224,14 @@ class StateManager:
         cursor = await self._db.execute("SELECT status FROM pages WHERE url = ?", (url,))
         row = await cursor.fetchone()
         return row["status"] if row else None
+
+    async def get_page_info(self, url: str) -> dict | None:
+        """Get full information about a page"""
+        cursor = await self._db.execute(
+            "SELECT url, status, crawl_depth, parent_url FROM pages WHERE url = ?", (url,)
+        )
+        row = await cursor.fetchone()
+        return dict(row) if row else None
 
     async def update_page_status(
         self,
@@ -240,15 +271,22 @@ class StateManager:
         await self._db.execute(query, params)
         await self._db.commit()
 
-    async def get_pending_pages(self, limit: int | None = None) -> list[dict[str, Any]]:
+    async def get_pending_pages(
+        self, limit: int | None = None, max_depth: int | None = None
+    ) -> list[dict[str, Any]]:
         """Get pages that need to be scraped"""
         query = """
-            SELECT url, title, retry_count
+            SELECT url, title, retry_count, crawl_depth
             FROM pages
             WHERE status IN (?, ?)
-            ORDER BY retry_count ASC, created_at ASC
         """
         params = [PageStatus.PENDING.value, PageStatus.FAILED.value]
+
+        if max_depth is not None:
+            query += " AND crawl_depth <= ?"
+            params.append(max_depth)
+
+        query += " ORDER BY crawl_depth ASC, retry_count ASC, created_at ASC"
 
         if limit:
             query += " LIMIT ?"

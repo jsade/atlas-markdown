@@ -132,11 +132,46 @@ def test_environment_file():
             else:
                 print("✓ All required environment variables present")
 
-                # Additional validation for BASE_URL
-                base_url = config.get("BASE_URL", "").strip()
-                if base_url and not base_url.startswith(("http://", "https://")):
-                    print(f"⚠ BASE_URL must start with http:// or https:// (got '{base_url}')")
+                # Strict validation for BASE_URL
+                base_url = config.get("BASE_URL", "").strip().rstrip("/")
+                required_prefix = "https://support.atlassian.com/"
+
+                if not base_url:
+                    print("⚠ BASE_URL is empty")
                     return False
+
+                if not base_url.startswith(required_prefix):
+                    print(f"⚠ BASE_URL must start with '{required_prefix}' (got '{base_url}')")
+                    print(
+                        "  This scraper is designed specifically for Atlassian support documentation."
+                    )
+                    return False
+
+                # Check if it has an endpoint after the base
+                if base_url == required_prefix.rstrip("/"):
+                    print("⚠ BASE_URL must include a specific product endpoint")
+                    print("  Examples:")
+                    print(f"    - {required_prefix}jira-service-management-cloud")
+                    print(f"    - {required_prefix}jira-software-cloud")
+                    print(f"    - {required_prefix}confluence-cloud")
+                    return False
+
+                # Check for known valid endpoints
+                valid_endpoints = [
+                    "jira-service-management-cloud",
+                    "jira-software-cloud",
+                    "confluence-cloud",
+                    "jira-work-management",
+                    "trello",
+                    "bitbucket-cloud",
+                    "statuspage",
+                ]
+
+                endpoint = base_url.replace(required_prefix, "").split("/")[0]
+                if endpoint not in valid_endpoints:
+                    print(f"⚠ Warning: '{endpoint}' is not a known Atlassian product endpoint")
+                    print(f"  Known endpoints: {', '.join(valid_endpoints)}")
+                    print("  The scraper may not work correctly with unknown endpoints.")
 
                 return True
         except Exception as e:
