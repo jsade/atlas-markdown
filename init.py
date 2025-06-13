@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Initialization script for Atlassian Service Management Documentation Scraper
+Initialization script for Atlassian Docs to Markdown
 This script sets up the development environment and project structure
 """
 
@@ -99,11 +99,14 @@ def install_dependencies():
         "markdownify",
         "aiofiles",
         "httpx",
+        "aiohttp",
         "Pillow",
         "tqdm",
         "rich",
         "aiosqlite",
         "python-dotenv",
+        "psutil",
+        "lxml",
     ]
 
     # Development dependencies
@@ -115,6 +118,7 @@ def install_dependencies():
         "ruff",
         "mypy",
         "pre-commit",
+        "ipdb",
     ]
 
     print_info("Installing core dependencies...")
@@ -146,8 +150,8 @@ def create_project_structure():
         "src/parsers",
         "src/utils",
         "tests",
-        "docs",
         "output",
+        "logs",
     ]
 
     for directory in directories:
@@ -173,7 +177,10 @@ def create_configuration_files():
     print_info("Creating configuration files...")
 
     # .gitignore
-    gitignore_content = """# Python
+    if Path(".gitignore").exists():
+        print_info(".gitignore already exists, skipping...")
+    else:
+        gitignore_content = """# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -211,11 +218,14 @@ build/
 *.egg-info/
 """
 
-    with open(".gitignore", "w") as f:
-        f.write(gitignore_content)
+        with open(".gitignore", "w") as f:
+            f.write(gitignore_content)
 
     # pyproject.toml
-    pyproject_content = """[tool.black]
+    if Path("pyproject.toml").exists():
+        print_info("pyproject.toml already exists, skipping...")
+    else:
+        pyproject_content = """[tool.black]
 line-length = 100
 target-version = ['py38']
 
@@ -240,36 +250,38 @@ source = ["src"]
 omit = ["tests/*", "venv/*"]
 """
 
-    with open("pyproject.toml", "w") as f:
-        f.write(pyproject_content)
+        with open("pyproject.toml", "w") as f:
+            f.write(pyproject_content)
 
-    # .env.example
-    env_example = """# Atlassian Scraper Configuration
+    # .env.example - copy from existing if available, otherwise create basic version
+    if Path(".env.example").exists():
+        print_info(".env.example already exists, skipping...")
+    else:
+        # Create a minimal .env.example pointing to the documentation
+        env_example = """# Atlassian Docs to Markdown Configuration
+#
+# For complete configuration options, run:
+#   python scraper.py --help
+#
+# Or see the full example configuration at:
+#   https://github.com/jsade/atlassian-docs-to-markdown/
+#
+# Required variable:
+BASE_URL=https://support.atlassian.com/jira-service-management-cloud
 
-# Output directory for downloaded documentation
+# Output directory (will be created if it doesn't exist)
 OUTPUT_DIR=./output
 
-# Number of concurrent workers for downloading
-WORKERS=5
-
-# Delay between requests (in seconds)
-REQUEST_DELAY=1.5
-
-# User agent string
-USER_AGENT="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
-
-# Claude API (optional, for content enhancement)
-# ANTHROPIC_API_KEY=your_api_key_here
-
-# Logging level (DEBUG, INFO, WARNING, ERROR)
-LOG_LEVEL=INFO
+# For all other configuration options, see the repository documentation.
 """
-
-    with open(".env.example", "w") as f:
-        f.write(env_example)
+        with open(".env.example", "w") as f:
+            f.write(env_example)
 
     # Pre-commit configuration
-    precommit_content = """repos:
+    if Path(".pre-commit-config.yaml").exists():
+        print_info(".pre-commit-config.yaml already exists, skipping...")
+    else:
+        precommit_content = """repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
     hooks:
@@ -291,8 +303,8 @@ LOG_LEVEL=INFO
         args: [--fix]
 """
 
-    with open(".pre-commit-config.yaml", "w") as f:
-        f.write(precommit_content)
+        with open(".pre-commit-config.yaml", "w") as f:
+            f.write(precommit_content)
 
     print_success("Configuration files created")
 
@@ -313,79 +325,16 @@ def create_requirements_file():
     print_success("requirements.txt created")
 
 
-def create_main_script():
-    """Create the main scraper script"""
-    print_info("Creating main scraper script...")
+def verify_main_script():
+    """Verify the main scraper script exists"""
+    print_info("Verifying main scraper script...")
 
-    scraper_content = '''#!/usr/bin/env python3
-"""
-Atlassian Jira Service Management Documentation Scraper
-Main entry point for the command-line tool
-"""
-
-import click
-import asyncio
-from pathlib import Path
-from rich.console import Console
-from rich.progress import Progress
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
-
-console = Console()
-
-
-@click.command()
-@click.option('--output', '-o',
-              default='./output',
-              help='Output directory for documentation')
-@click.option('--workers', '-w',
-              default=5,
-              type=int,
-              help='Number of concurrent workers')
-@click.option('--delay', '-d',
-              default=1.5,
-              type=float,
-              help='Delay between requests in seconds')
-@click.option('--resume',
-              is_flag=True,
-              help='Resume from previous state')
-@click.option('--dry-run',
-              is_flag=True,
-              help='Show what would be scraped without downloading')
-@click.option('--verbose', '-v',
-              is_flag=True,
-              help='Enable verbose output')
-def scrape(output, workers, delay, resume, dry_run, verbose):
-    """Scrape Atlassian Jira Service Management documentation"""
-
-    console.print(f"[bold blue]Atlassian Documentation Scraper[/bold blue]")
-    console.print(f"Output directory: {output}")
-    console.print(f"Workers: {workers}")
-    console.print(f"Request delay: {delay}s")
-
-    if dry_run:
-        console.print("[yellow]DRY RUN MODE - No files will be downloaded[/yellow]")
-
-    if resume:
-        console.print("[green]Resuming from previous state...[/green]")
-
-    # TODO: Implement scraping logic
-    console.print("[red]Scraper implementation pending...[/red]")
-
-
-if __name__ == '__main__':
-    scrape()
-'''
-
-    with open("scraper.py", "w") as f:
-        f.write(scraper_content)
-
-    # Make it executable
-    os.chmod("scraper.py", 0o755)
-
-    print_success("Main scraper script created")
+    if Path("scraper.py").exists():
+        print_success("Main scraper script found")
+        # Make it executable
+        os.chmod("scraper.py", 0o755)
+    else:
+        print_error("scraper.py not found - please ensure you have the complete repository")
 
 
 def setup_pre_commit():
@@ -442,7 +391,7 @@ def main():
         create_project_structure()
         create_configuration_files()
         create_requirements_file()
-        create_main_script()
+        verify_main_script()
         setup_pre_commit()
 
         # Done!

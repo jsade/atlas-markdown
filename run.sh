@@ -1,5 +1,5 @@
 #!/bin/bash
-# Simple run script for the Atlassian documentation scraper
+# Simple run script for the Atlassian Docs to Markdown script
 
 # Activate virtual environment if it exists
 if [ -d "venv" ]; then

@@ -46,6 +46,10 @@ class HealthMonitor:
         """Check available disk space"""
         try:
             import shutil
+            from pathlib import Path
+
+            # Create output directory if it doesn't exist
+            Path(self.output_dir).mkdir(parents=True, exist_ok=True)
 
             stat = shutil.disk_usage(self.output_dir)
 

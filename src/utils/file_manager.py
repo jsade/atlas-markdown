@@ -276,9 +276,7 @@ class FileSystemManager:
 
     async def create_index(self, pages: list) -> str:
         """Create an index file with all scraped pages"""
-        index_content = """# Atlassian Jira Service Management Documentation
-
-This is an offline copy of the Atlassian Jira Service Management documentation.
+        index_content = """# Atlassian Documentation
 
 ## Table of Contents
 

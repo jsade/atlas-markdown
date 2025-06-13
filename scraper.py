@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Atlassian Documentation Scraper
+Atlassian Documentation Docs to Markdown script
 Main entry point for the command-line tool
 """
 
@@ -277,6 +277,10 @@ class DocumentationScraper(ThrottledScraper):
         self.env_config = env_config
         self.base_url = env_config["BASE_URL"]
         self.entry_point = f"{self.base_url}/resources/"
+
+        # Create output directory if it doesn't exist
+        output_dir = Path(config["output"])
+        output_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize rate limiter
         rate_limiter = RateLimiter(rate=1.0 / config["delay"], burst=config["workers"])
