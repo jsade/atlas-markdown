@@ -1,16 +1,13 @@
-# Atlassian Docs to Markdown
 
-A robust command-line tool that downloads selected Atlassian product documentation from https://support.atlassian.com and transforms it to a clean, organized Markdown folder on your local filesystem. Built specifically to be used with [Obsidian](https://obsidian.md/) though any markdown viewer should work.
+<h1><p align="center">Atlassian Docs to Markdown</p></h1>
 
-Supports the following documentation sites:
+![Obsidian](docs/images/obsidian.png)
+A robust command-line tool for transforming selected [Atlassian online product documentation](https://support.atlassian.com) into a clean, organized Markdown site on your local filesystem. Built specifically to be used with [Obsidian](https://obsidian.md/), though any markdown viewer will work.
 
-- [Jira Software Cloud](https://support.atlassian.com/jira-software-cloud)
-- [Jira Work Management](https://support.atlassian.com/jira-work-management)
-- [Jira Service Management Cloud](https://support.atlassian.com/jira-service-management-cloud)
-- [Confluence Cloud](https://support.atlassian.com/confluence-cloud)
-- [Trello](https://support.atlassian.com/trello)
-- [Bitbucket Cloud](https://support.atlassian.com/bitbucket-cloud)
-- [Statuspoge](https://support.atlassian.com/statuspage)
+Supports the following Atlassian product documentation: [Jira Software Cloud](https://support.atlassian.com/jira-software-cloud), [Jira Work Management](https://support.atlassian.com/jira-work-management), [Jira Service Management Cloud](https://support.atlassian.com/jira-service-management-cloud), [Confluence Cloud](https://support.atlassian.com/confluence-cloud), [Trello](https://support.atlassian.com/trello), [Bitbucket Cloud](https://support.atlassian.com/bitbucket-cloud), [Statuspage](https://support.atlassian.com/statuspage).
+
+![Free](https://img.shields.io/badge/free_for_non_commercial_use-brightgreen) ![GitHub last commit](https://img.shields.io/github/last-commit/jsade/atlassian-docs-to-markdown)
+---
 
 ## Features
 
@@ -47,6 +44,19 @@ python utils/test_environment.py
 ```
 
 ## How It Works
+
+The script operates in 7 distinct phases:
+
+1. **Discovery** - Extracts page hierarchy from React state or sitemap
+2. **Page Scraping** - Downloads pages using Playwright for JavaScript rendering
+3. **Image Download** - Fetches all referenced images asynchronously
+4. **Retry Failed** - Attempts to re-scrape any failed pages
+5. **Index Generation** - Creates navigation index of all content
+6. **Link Resolution** - Converts wiki-style links to file references
+7. **Markdown Linting** - Cleans up and standardizes formatting
+
+<details>
+<summary>Click to open a visual representation</summary>
 
 ```mermaid
   flowchart LR
@@ -104,17 +114,7 @@ python utils/test_environment.py
       class Start,End startEnd
 ```
 
-### Seven Step Pipeline
-The script operates in 7 distinct phases:
-
-1. **Discovery** - Extracts page hierarchy from React state or sitemap
-2. **Page Scraping** - Downloads pages using Playwright for JavaScript rendering
-3. **Image Download** - Fetches all referenced images asynchronously
-4. **Retry Failed** - Attempts to re-scrape any failed pages
-5. **Index Generation** - Creates navigation index of all content
-6. **Link Resolution** - Converts wiki-style links to file references
-7. **Markdown Linting** - Cleans up and standardizes formatting
-
+</details>
 
 ### Output Structure
 
@@ -137,6 +137,7 @@ output/
 ### State Management
 
 The script uses SQLite (`scraper_state.db`) to track:
+
 - Page scraping status and metadata
 - Image download progress
 - Failed pages for retry
@@ -146,48 +147,42 @@ This enables seamless resumption after interruptions.
 
 ### Markdown Linting Rules
 
-The script includes an automatic markdown linter that fixes common formatting issues.
-The linter generates a report (`linting_report.md`) summarizing all fixes applied across your documentation.
+The script includes an automatic markdown linter that fixes common formatting issues. The linter generates a report (`linting_report.md`) summarizing all fixes applied across your documentation. The following rules are applied during the linting phase (can be skipped with `--no-lint`):
 
-The following rules are applied during the linting phase (can be skipped with `--no-lint`):
+- Content Structure
+	- Remove content before H1 - Ensures documents start with a proper H1 heading
+	- Fix multi-line wiki links - Consolidates wiki links that span multiple lines into single-line format
+- Link Formatting
+	- Convert internal links to wiki-style - Internal markdown links `[text](file.md)` become `[[file|text]]`
+	- Preserve external links - HTTP/HTTPS links remain in standard markdown format `[text](url)`
+- Table Formatting
+	- Add missing table headers - Inserts header rows for tables that lack them
+	- Fix table separators - Ensures proper table formatting with separator lines
+- Heading Rules
+	- Enforce heading spacing - Adds blank lines before and after headings for consistency
+	- Preserve heading hierarchy - Maintains proper H1-H6 structure
+- Whitespace Management
+	- Remove trailing whitespace - Cleans line endings
+	- Reduce multiple blank lines - Replaces 3+ consecutive blank lines with 2
+	- Ensure final newline - Adds newline at end of file if missing
+- HTML Conversion
+	- Convert inline HTML - Transforms common HTML tags to markdown:
+		- `<br>` → line break
+		- `<strong>`, `<b>` → `**bold**`
+		- `<em>`, `<i>` → `*italic*`
+		- `<code>` → `` `code` ``
+- List Formatting
+	- Fix list indentation - Ensures list items start at column 0
+	- Remove empty lines between list items - Creates compact lists
+	- Fix numbered list sequences - Renumbers lists to be consecutive (1, 2, 3...)
 
-#### Content Structure
-- **Remove content before H1** - Ensures documents start with a proper H1 heading
-- **Fix multi-line wiki links** - Consolidates wiki links that span multiple lines into single-line format
+>[!info] Note on Markdown Flavors
+> - All panels (info, warning, note, error) are converted to an Obsidian [callout](https://help.obsidian.md/callouts) format.
+> - Internal (local) links will be rendered as wikilinks, external links will use markdown link syntax.
 
-#### Link Formatting
-- **Convert internal links to wiki-style** - Internal markdown links `[text](file.md)` become `[[file|text]]`
-- **Preserve external links** - HTTP/HTTPS links remain in standard markdown format `[text](url)`
+### Helpful Logging
 
-#### Table Formatting
-- **Add missing table headers** - Inserts header rows for tables that lack them
-- **Fix table separators** - Ensures proper table formatting with separator lines
-
-#### Heading Rules
-- **Enforce heading spacing** - Adds blank lines before and after headings for consistency
-- **Preserve heading hierarchy** - Maintains proper H1-H6 structure
-
-#### Whitespace Management
-- **Remove trailing whitespace** - Cleans line endings
-- **Reduce multiple blank lines** - Replaces 3+ consecutive blank lines with 2
-- **Ensure final newline** - Adds newline at end of file if missing
-
-#### HTML Conversion
-- **Convert inline HTML** - Transforms common HTML tags to markdown:
-  - `<br>` → line break
-  - `<strong>`, `<b>` → `**bold**`
-  - `<em>`, `<i>` → `*italic*`
-  - `<code>` → `` `code` ``
-
-#### List Formatting
-- **Fix list indentation** - Ensures list items start at column 0
-- **Remove empty lines between list items** - Creates compact lists
-- **Fix numbered list sequences** - Renumbers lists to be consecutive (1, 2, 3...)
-
-#### Note on Markdown Flavors
-
-- All panels (info, warning, note, error) are converted to an Obsidian [callout](https://help.obsidian.md/callouts) format.
-- Internal (local) links will be rendered as wikilinks, external links will use markdown link syntax.
+![Logs](docs/images/logging.png)
 
 ## Usage
 
@@ -261,4 +256,12 @@ This tool is designed for legitimate documentation archival and offline access. 
 
 ## License
 
-This project is licensed under the GNU General Public License v3.0 - see the LICENSE file for details.
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+
+### Disclaimer
+
+This project is an independent open-source tool and is not affiliated with, endorsed by, or sponsored by Atlassian Corporation Pty Ltd.
+
+_All Atlassian product names, logos, and brands mentioned in this repository (including but not limited to Jira, Confluence, Bitbucket, Trello, and Statuspage) are the property of Atlassian Corporation Pty Ltd. All product and company names are trademarks™ or registered® trademarks of their respective holders. Use of them does not imply any affiliation with or endorsement by them._
+
+_This tool is designed for personal use to create offline copies of publicly available documentation. Users are responsible for complying with Atlassian's Terms of Service and any applicable usage policies when accessing their documentation._

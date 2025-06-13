@@ -463,11 +463,27 @@ class ContentParser:
     def _process_image(self, img: Tag, page_url: str):
         """Process image tags and collect URLs"""
         src = img.get("src", "")
+        if isinstance(src, list):
+            src = src[0] if src else ""
         if not src:
             return
 
-        # Make URL absolute
-        absolute_url = urljoin(page_url, src)
+        # Handle protocol-relative URLs (e.g., //example.com/image.jpg)
+        if src.startswith("//"):
+            # Extract protocol from page_url and prepend it
+            from urllib.parse import urlparse
+
+            parsed_page = urlparse(page_url)
+            absolute_url = f"{parsed_page.scheme}:{src}"
+            # Update the img tag to use absolute URL for markdown conversion
+            img["src"] = absolute_url
+        else:
+            # Make URL absolute for regular URLs
+            absolute_url = urljoin(page_url, src)
+            # Update the img tag if it was relative
+            if not src.startswith(("http://", "https://")):
+                img["src"] = absolute_url
+
         self.image_urls.add(absolute_url)
 
         # Add alt text if missing
@@ -477,6 +493,8 @@ class ContentParser:
     def _process_link(self, link: Tag, page_url: str):
         """Process link tags"""
         href = link.get("href", "")
+        if isinstance(href, list):
+            href = href[0] if href else ""
         if not href:
             return
 
@@ -802,23 +820,33 @@ class ContentParser:
 
             # Replace in standard markdown image syntax ![alt](url)
             markdown = re.sub(
-                f"!\\[([^\\]]*)\\]\\({escaped_url}\\)", f"![\\1]({local_path})", markdown
+                f"!\\[([^\\]]*)\\]\\({escaped_url}\\)", f"![[{local_path}]]", markdown
             )
 
-            # Replace in wiki-style image syntax ![[url|alt]]
-            markdown = re.sub(
-                f"!\\[\\[{escaped_url}\\|([^\\]]*)\\]\\]", f"![[{local_path}|\\1]]", markdown
-            )
-
-            # Also handle protocol-relative URLs in wiki-style (//example.com)
+            # Also handle protocol-relative URLs
             if original_url.startswith("https://"):
                 protocol_relative = original_url.replace("https://", "//", 1)
                 escaped_protocol_relative = re.escape(protocol_relative)
+                # Replace in standard markdown syntax with protocol-relative URL
                 markdown = re.sub(
-                    f"!\\[\\[{escaped_protocol_relative}\\|([^\\]]*)\\]\\]",
-                    f"![[{local_path}|\\1]]",
+                    f"!\\[([^\\]]*)\\]\\({escaped_protocol_relative}\\)",
+                    f"![[{local_path}]]",
                     markdown,
                 )
+            elif original_url.startswith("http://"):
+                protocol_relative = original_url.replace("http://", "//", 1)
+                escaped_protocol_relative = re.escape(protocol_relative)
+                # Replace in standard markdown syntax with protocol-relative URL
+                markdown = re.sub(
+                    f"!\\[([^\\]]*)\\]\\({escaped_protocol_relative}\\)",
+                    f"![[{local_path}]]",
+                    markdown,
+                )
+
+            # Replace in wiki-style image syntax ![[url|alt]]
+            markdown = re.sub(
+                f"!\\[\\[{escaped_url}\\|([^\\]]*)\\]\\]", f"![[{local_path}]]", markdown
+            )
 
             # Also replace in HTML img tags if any remain
             markdown = re.sub(f'src="{escaped_url}"', f'src="{local_path}"', markdown)
