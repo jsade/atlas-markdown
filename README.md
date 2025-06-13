@@ -7,7 +7,6 @@ A robust command-line tool for transforming selected [Atlassian online product d
 Supports the following Atlassian product documentation: [Jira Software Cloud](https://support.atlassian.com/jira-software-cloud), [Jira Work Management](https://support.atlassian.com/jira-work-management), [Jira Service Management Cloud](https://support.atlassian.com/jira-service-management-cloud), [Confluence Cloud](https://support.atlassian.com/confluence-cloud), [Trello](https://support.atlassian.com/trello), [Bitbucket Cloud](https://support.atlassian.com/bitbucket-cloud), [Statuspage](https://support.atlassian.com/statuspage).
 
 ![Free](https://img.shields.io/badge/free_for_non_commercial_use-brightgreen) ![GitHub last commit](https://img.shields.io/github/last-commit/jsade/atlassian-docs-to-markdown)
----
 
 ## Features
 
@@ -116,7 +115,8 @@ The script operates in 7 distinct phases:
 
 </details>
 
-### Output Structure
+<details>
+<summary>Click to open an example site output</summary>
 
 ```plaintext
 output/
@@ -134,6 +134,8 @@ output/
 └── linting_report.md          # Markdown formatting report
 ```
 
+</details>
+
 ### State Management
 
 The script uses SQLite (`scraper_state.db`) to track:
@@ -147,14 +149,22 @@ This enables seamless resumption after interruptions.
 
 ### Markdown Linting Rules
 
-The script includes an automatic markdown linter that fixes common formatting issues. The linter generates a report (`linting_report.md`) summarizing all fixes applied across your documentation. The following rules are applied during the linting phase (can be skipped with `--no-lint`):
+The script includes an automatic markdown linter that fixes common formatting issues. The linter generates a report (`linting_report.md`) summarizing all fixes applied across your documentation.
 
+<details>
+<summary>Click to open list of special linting rules</summary>
+<br/>
+The following rules are applied during the linting phase (can be skipped with `--no-lint`):
+  
 - Content Structure
 	- Remove content before H1 - Ensures documents start with a proper H1 heading
 	- Fix multi-line wiki links - Consolidates wiki links that span multiple lines into single-line format
 - Link Formatting
 	- Convert internal links to wiki-style - Internal markdown links `[text](file.md)` become `[[file|text]]`
 	- Preserve external links - HTTP/HTTPS links remain in standard markdown format `[text](url)`
+- Panel Conversion
+	- Panel admonitions will be transformed to Obsidian [callout](https://help.obsidian.md/callouts) format
+ 	- Supports types "info", "warning", "error", "note", and "success"
 - Table Formatting
 	- Add missing table headers - Inserts header rows for tables that lack them
 	- Fix table separators - Ensures proper table formatting with separator lines
@@ -176,13 +186,22 @@ The script includes an automatic markdown linter that fixes common formatting is
 	- Remove empty lines between list items - Creates compact lists
 	- Fix numbered list sequences - Renumbers lists to be consecutive (1, 2, 3...)
 
->[!info] Note on Markdown Flavors
-> - All panels (info, warning, note, error) are converted to an Obsidian [callout](https://help.obsidian.md/callouts) format.
-> - Internal (local) links will be rendered as wikilinks, external links will use markdown link syntax.
+</details>
 
 ### Helpful Logging
 
+- Supports various log levels (DEBUG, INFO, WARNING, ERROR)
+- Timestamped log output to LOG_DIR
+
+<details>
+	<summary>Click to open a screenshot</summary>
+<br/>
+
 ![Logs](docs/images/logging.png)
+
+<br/>
+
+</details>
 
 ## Usage
 
@@ -262,6 +281,12 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 
 This project is an independent open-source tool and is not affiliated with, endorsed by, or sponsored by Atlassian Corporation Pty Ltd.
 
+<details>
+<summary>Click to open full disclaimer</summary>
+<br/>
+	
 _All Atlassian product names, logos, and brands mentioned in this repository (including but not limited to Jira, Confluence, Bitbucket, Trello, and Statuspage) are the property of Atlassian Corporation Pty Ltd. All product and company names are trademarks™ or registered® trademarks of their respective holders. Use of them does not imply any affiliation with or endorsement by them._
 
 _This tool is designed for personal use to create offline copies of publicly available documentation. Users are responsible for complying with Atlassian's Terms of Service and any applicable usage policies when accessing their documentation._
+
+</details>
