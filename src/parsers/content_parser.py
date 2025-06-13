@@ -799,10 +799,27 @@ class ContentParser:
         for original_url, local_path in image_map.items():
             # Escape special regex characters in URL
             escaped_url = re.escape(original_url)
-            # Replace in markdown image syntax
+
+            # Replace in standard markdown image syntax ![alt](url)
             markdown = re.sub(
                 f"!\\[([^\\]]*)\\]\\({escaped_url}\\)", f"![\\1]({local_path})", markdown
             )
+
+            # Replace in wiki-style image syntax ![[url|alt]]
+            markdown = re.sub(
+                f"!\\[\\[{escaped_url}\\|([^\\]]*)\\]\\]", f"![[{local_path}|\\1]]", markdown
+            )
+
+            # Also handle protocol-relative URLs in wiki-style (//example.com)
+            if original_url.startswith("https://"):
+                protocol_relative = original_url.replace("https://", "//", 1)
+                escaped_protocol_relative = re.escape(protocol_relative)
+                markdown = re.sub(
+                    f"!\\[\\[{escaped_protocol_relative}\\|([^\\]]*)\\]\\]",
+                    f"![[{local_path}|\\1]]",
+                    markdown,
+                )
+
             # Also replace in HTML img tags if any remain
             markdown = re.sub(f'src="{escaped_url}"', f'src="{local_path}"', markdown)
 

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ask a Question
+    url: https://github.com/jsade/atlassian-docs-to-markdown/discussions
+    about: Please ask and answer questions in GitHub Discussions
+  - name: Code of Conduct
+    url: https://github.com/jsade/atlassian-docs-to-markdown/blob/main/CODE_OF_CONDUCT.md
+    about: Please read our Code of Conduct

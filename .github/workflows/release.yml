@@ -1,0 +1,58 @@
+name: Semantic Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install python-semantic-release build
+
+      - name: Run semantic release
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          semantic-release version
+          semantic-release publish
+
+      - name: Build distribution
+        if: success()
+        run: |
+          python -m build
+
+      - name: Upload to GitHub Release
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get the latest tag
+          LATEST_TAG=$(git describe --tags --abbrev=0)
+          # Upload distribution files if they exist
+          if [ -d "dist" ] && [ "$(ls -A dist)" ]; then
+            gh release upload $LATEST_TAG dist/* --clobber
+          fi
