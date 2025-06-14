@@ -41,7 +41,7 @@ A robust command-line tool for transforming selected <strong><a href="https://su
 
 - 🚀 **Autonomous Operation** - Set it and forget it. The script handles everything from discovery to final output
 - 🔄 **Resume Capability** - Interrupt anytime and continue where you left off
-- 📸 **Image Handling** - Downloads all images and updates references automatically«
+- 📸 **Image Handling** - Downloads all images and updates references automatically
 - 🎯 **Accurate Content Extraction** - Handles React SPAs and dynamic content with Playwright
 - 📝 **Clean Markdown** - Converts HTML to linted and well-formatted Markdown
 - 🛡️ **Managed Safeguards** - Rate limiting, circuit breakers, and configurable constraints

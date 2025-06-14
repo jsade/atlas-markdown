@@ -88,15 +88,17 @@ Add `BREAKING CHANGE:` in the commit body or footer to trigger a major version b
 
 #### Version Management
 
+> [!IMPORTANT]
+> - Do not use `cz bump` or `cz changelog` - all versioning and changelog generation is handled by semantic-release
+> - Use `cz commit` for creating properly formatted commit messages
+> - Semantic-release automatically manages versions, changelogs, and releases in CI/CD
+
 ```bash
 # Check current version
 cz version --project
 
-# Manual version bump (if needed)
-# cz bump
-
-# Create changelog
-cz changelog
+# Create conventional commits interactively
+cz commit
 ```
 
 #### Semantic Release Dry-Run
@@ -108,8 +110,8 @@ Before pushing to main, you can preview what the semantic release will do:
 semantic-release version --print
 # Note: You'll see a "Token value is missing!" warning - this is normal for local runs
 
-# See what would happen without making changes
-semantic-release version --print --no-commit --no-tag --no-push --no-vcs-release
+# See what would happen without making changes (simplified in v10.x)
+semantic-release version --print --noop
 
 # Check the last released version
 semantic-release version --print-last-released
@@ -132,14 +134,40 @@ For local development, you can safely ignore this warning when using `--print` f
 
 The project also includes a GitHub Actions workflow for dry-runs on pull requests. This automatically shows what version would be released when the PR is merged.
 
+#### Tool Responsibilities
+
+**Commitizen is used for:**
+- Creating conventional commits (`cz commit`)
+- Checking current project version (`cz version --project`)
+- Nothing else - no bumping, no changelog generation
+
+**Semantic-release handles:**
+- All version bumping (based on commit types)
+- Changelog generation and updates
+- Creating git tags
+- Creating GitHub releases
+- Updating both `[project]` and `[tool.commitizen]` version fields
+
+##### Semantic Release v10.x Features
+
+The project uses python-semantic-release v10.x which includes:
+- Enhanced commit parsing with squash commit support
+- Improved security and performance
+- Better merge commit handling
+- Stricter validation with `--strict` flag for CI/CD
+- Simplified dry-run with `--noop` flag
+
 #### Automated Releases
 
 When you push to the `main` branch, GitHub Actions will:
 1. Analyze commits since last release
 2. Determine version bump (major/minor/patch)
-3. Update version in `pyproject.toml`
+3. Update version in `pyproject.toml` (both project and commitizen sections)
 4. Generate/update CHANGELOG.md
 5. Create GitHub release with assets
 6. Tag the release
 
-The workflow uses Python Semantic Release for pure Python compatibility.
+The workflow uses Python Semantic Release v10.x for pure Python compatibility.
+
+> [!TIP]
+> For stricter validation in CI/CD, consider adding the `--strict` flag to semantic-release commands in GitHub Actions workflows. This ensures releases fail fast on configuration or parsing errors.
