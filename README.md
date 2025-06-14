@@ -53,6 +53,8 @@ A robust command-line tool for transforming selected <strong><a href="https://su
 
 ## Quick Start
 
+Download the [latest](https://github.com/jsade/atlassian-docs-to-markdown/releases/latest) release and extract it to a suitable folder. 
+
 ```bash
 # 1. Run the initialization script
 python3 init.py
