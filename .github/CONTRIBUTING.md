@@ -1,6 +1,6 @@
-# Contributing to Atlassian Docs to Markdown
+# Contributing to Atlassian Docs to Markdown Converter
 
-First off, thank you for considering contributing to Atlassian Docs to Markdown! It's people like you that make this tool better for everyone.
+First off, thank you for considering contributing to Atlassian Documentation to Markdown Converter! It's people like you that make this tool better for everyone.
 
 This document provides guidelines for contributing to the project. These are mostly guidelines, not rules. Use your best judgment, and feel free to propose changes to this document in a pull request.
 
@@ -38,7 +38,8 @@ This project and everyone participating in it is governed by our [Code of Conduc
 
 ## I Just Have a Question
 
-> **Note:** Please don't file an issue to ask a question. You'll get faster results by using the resources below.
+> [!IMPORTANT]
+> Please don't file an issue to ask a question. You'll get faster results by using the resources below.
 
 - Read the [README.md](README.md) thoroughly - it contains detailed usage instructions and troubleshooting tips
 - Check existing [Issues](https://github.com/jsade/atlassian-docs-to-markdown/issues) - someone might have already asked your question
@@ -48,7 +49,7 @@ This project and everyone participating in it is governed by our [Code of Conduc
 
 ### Project Overview
 
-Atlassian Docs to Markdown is a command-line tool that downloads and converts Atlassian product documentation to Markdown format. Key aspects:
+Atlassian Documentation to Markdown Converter is a command-line tool that downloads and converts Atlassian product documentation to Markdown format. Key aspects:
 
 - Built with Python 3.8+ for cross-platform compatibility
 - Uses Playwright for handling JavaScript-rendered content
@@ -106,27 +107,27 @@ Unsure where to begin? Look for issues labeled:
 
 1. Fork the repository
 2. Clone your fork:
-   ```bash
-   git clone https://github.com/your-username/atlassian-docs-to-markdown.git
-   cd atlassian-docs-to-markdown
-   ```
+```bash
+git clone https://github.com/your-username/atlassian-docs-to-markdown.git
+cd atlassian-docs-to-markdown
+```
 
 3. Run the initialization script:
-   ```bash
-   python3 init.py
-   source venv/bin/activate
-   ```
+```bash
+python3 init.py
+source venv/bin/activate
+```
 
 4. Install development dependencies:
-   ```bash
-   pip install -e ".[dev]"
-   pre-commit install
-   ```
+```bash
+pip install -e ".[dev]"
+pre-commit install
+```
 
 5. Create a branch for your feature:
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
+```bash
+git checkout -b feature/your-feature-name
+```
 
 ### Pull Requests
 
@@ -140,17 +141,17 @@ Unsure where to begin? Look for issues labeled:
 #### Pull Request Process
 
 1. Ensure all tests pass locally:
-   ```bash
-   pytest tests/
-   ruff check .
-   black --check .
-   ```
+```bash
+pytest tests/
+ruff check .
+black --check .
+```
 
 2. Run a semantic release dry-run to see version impact:
-   ```bash
-   semantic-release version --print
-   # Note: "Token value is missing!" warning is normal for local runs
-   ```
+```bash
+semantic-release version --print
+# Note: "Token value is missing!" warning is normal for local runs
+```
 
 3. Update documentation if needed
 4. Submit your PR with a clear description

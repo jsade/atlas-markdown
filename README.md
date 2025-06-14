@@ -1,18 +1,47 @@
 
-<h1><p align="center">Atlassian Docs to Markdown</p></h1>
+<h1><p align="center">Atlassian Documentation<br/>to Markdown Converter</p></h1>
 
-![Obsidian](docs/images/obsidian.png)
-A robust command-line tool for transforming selected [Atlassian online product documentation](https://support.atlassian.com) into a clean, organized Markdown site on your local filesystem. Built specifically to be used with [Obsidian](https://obsidian.md/), though any markdown viewer will work.
+<img src="docs/images/obsidian.png" alt="Obsidian" align="right" height="100%"/>
+<div style="width: 100%; text-align: center; margin-bottom: 20px; display: flex; flex-wrap: wrap; justify-content: center;">
+<div align="center" style="text-align: center; flex-wrap: nowrap; justify-content: center; padding-bottom:10px;">
+    <img align="left" src="docs/images/Apps-dark_Confluence_logo_brand_RGB.svg" alt="Confluence" height="20"/>
+</div>
+<div align="center" style="text-align: center; flex-wrap: nowrap; justify-content: center; padding-bottom:10px;">
+    <img align="left" src="docs/images/Apps-dark_Jira_logo_brand_RGB.svg" alt="Jira" height="20"/>
+</div>
+<div align="center" style="text-align: center; flex-wrap: nowrap; justify-content: center; padding-bottom:10px;">
+    <img align="left" src="docs/images/Apps-dark_Jira-Service-Management_logo_brand_RGB.svg" alt="Jira Service Management" height="20"/>
+</div>
+<div align="center" style="text-align: center; flex-wrap: nowrap; justify-content: center; padding-bottom:10px;">
+    <img align="left" src="docs/images/Apps-dark_Trello_logo_brand_RGB.svg" alt="Trello" height="20"/>
+</div>
+<div align="center" style="text-align: center; flex-wrap: nowrap; justify-content: center; padding-bottom:10px;">
+    <img align="left" src="docs/images/Apps-dark_Bitbucket_logo_brand_RGB.svg" alt="Bitbucket" height="20"/>
+</div>
+<div align="center" style="text-align: center; flex-wrap: nowrap; justify-content: center; padding-bottom:10px;">
+    <img align="left" src="docs/images/Apps-dark_Statuspage_logo_brand_RGB.svg" alt="Statuspage" height="20"/>
+</div>
+</div>
 
-Supports the following Atlassian product documentation: [Jira Software Cloud](https://support.atlassian.com/jira-software-cloud), [Jira Work Management](https://support.atlassian.com/jira-work-management), [Jira Service Management Cloud](https://support.atlassian.com/jira-service-management-cloud), [Confluence Cloud](https://support.atlassian.com/confluence-cloud), [Trello](https://support.atlassian.com/trello), [Bitbucket Cloud](https://support.atlassian.com/bitbucket-cloud), [Statuspage](https://support.atlassian.com/statuspage).
 
-![Free](https://img.shields.io/badge/free_for_non_commercial_use-brightgreen) ![GitHub last commit](https://img.shields.io/github/last-commit/jsade/atlassian-docs-to-markdown)
+
+<div style="display: flex; align-items: flex-start;">
+  <div style="flex: 1; padding-right: 20px;">
+A robust command-line tool for transforming selected <strong><a href="https://support.atlassian.com">Atlassian online product documentation</a></strong> into a clean, organized Markdown site on your local filesystem. Built specifically for use with <strong><a href="https://obsidian.md/)">Obsidian</a></strong>, though any markdown viewer will work.
+  </div>
+  <div>
+    <img align="right" src="docs/images/obsidian-logo-text-white-purple.svg" alt="Obsidian" height="30" />
+  </div>
+</div>
+
+<br/>
+
 
 ## Features
 
 - 🚀 **Autonomous Operation** - Set it and forget it. The script handles everything from discovery to final output
 - 🔄 **Resume Capability** - Interrupt anytime and continue where you left off
-- 📸 **Image Handling** - Downloads all images and updates references automatically
+- 📸 **Image Handling** - Downloads all images and updates references automatically«
 - 🎯 **Accurate Content Extraction** - Handles React SPAs and dynamic content with Playwright
 - 📝 **Clean Markdown** - Converts HTML to linted and well-formatted Markdown
 - 🛡️ **Managed Safeguards** - Rate limiting, circuit breakers, and configurable constraints
@@ -155,7 +184,7 @@ The script includes an automatic markdown linter that fixes common formatting is
 <summary>Click to open list of special linting rules</summary>
 <br/>
 The following rules are applied during the linting phase (can be skipped with `--no-lint`):
-  
+
 - Content Structure
 	- Remove content before H1 - Ensures documents start with a proper H1 heading
 	- Fix multi-line wiki links - Consolidates wiki links that span multiple lines into single-line format
@@ -277,14 +306,14 @@ This tool is designed for legitimate documentation archival and offline access. 
 
 This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
 
-### Disclaimer
+## Disclaimer
 
 This project is an independent open-source tool and is not affiliated with, endorsed by, or sponsored by Atlassian Corporation Pty Ltd.
 
 <details>
 <summary>Click to open full disclaimer</summary>
 <br/>
-	
+
 _All Atlassian product names, logos, and brands mentioned in this repository (including but not limited to Jira, Confluence, Bitbucket, Trello, and Statuspage) are the property of Atlassian Corporation Pty Ltd. All product and company names are trademarks™ or registered® trademarks of their respective holders. Use of them does not imply any affiliation with or endorsement by them._
 
 _This tool is designed for personal use to create offline copies of publicly available documentation. Users are responsible for complying with Atlassian's Terms of Service and any applicable usage policies when accessing their documentation._
