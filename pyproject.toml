@@ -43,9 +43,9 @@ atlassian-scraper = "scraper:main"
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.1.0"
+version = "1.0.0"
 version_files = [
-    "pyproject.toml:version"
+    "pyproject.toml:project.version"
 ]
 tag_format = "v$version"
 update_changelog_on_bump = true
@@ -62,7 +62,8 @@ refactor = "PATCH"
 perf = "PATCH"
 
 [tool.semantic_release]
-version_toml = ["pyproject.toml:project.version"]
+version_toml = ["pyproject.toml:project.version",
+      "pyproject.toml:tool.commitizen.version"]
 version_pattern = [
     "setup.py:version='{version}'",
 ]

@@ -90,10 +90,10 @@ Add `BREAKING CHANGE:` in the commit body or footer to trigger a major version b
 
 ```bash
 # Check current version
-cz version
+cz version --project
 
 # Manual version bump (if needed)
-cz bump
+# cz bump
 
 # Create changelog
 cz changelog
