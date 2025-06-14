@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "atlassian-docs-to-markdown"
-version = "1.0.0"
-description = "A robust command-line tool that downloads selected Atlassian product documentation from https://support.atlassian.com and transforms it to a clean, organized Markdown folder on your local filesystem."
+version = "0.1.0"
+description = "Atlas Markdown is a Python-based tool that downloads and converts Atlassian product documentation into clean Markdown files optimized for tools like Obsidian."
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "GPLv3"}
@@ -43,7 +43,7 @@ atlassian-scraper = "scraper:main"
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "1.0.0"
+version = "0.1"
 version_files = [
     "pyproject.toml:project.version"
 ]
