@@ -83,7 +83,7 @@ class SitemapParser:
             url_infos = self.parse_sitemap(xml_content)
 
             # Extract just the URLs
-            urls = [info["url"] for info in url_infos]
+            urls = [info["url"] for info in url_infos if info["url"] is not None]
 
             # Filter URLs based on preferences and base URL
             if include_resources:
@@ -91,16 +91,18 @@ class SitemapParser:
                 filtered_urls = [
                     url
                     for url in urls
-                    if url.startswith(self.base_url) and ("/docs/" in url or "/resources/" in url)
+                    if url
+                    and url.startswith(self.base_url)
+                    and ("/docs/" in url or "/resources/" in url)
                 ]
             else:
                 # Only documentation URLs within base URL
                 filtered_urls = [
-                    url for url in urls if url.startswith(self.base_url) and "/docs/" in url
+                    url for url in urls if url and url.startswith(self.base_url) and "/docs/" in url
                 ]
 
             logger.info(
-                f"Found {len(filtered_urls)} URLs (docs: {sum(1 for u in filtered_urls if '/docs/' in u)}, resources: {sum(1 for u in filtered_urls if '/resources/' in u)})"
+                f"Found {len(filtered_urls)} URLs (docs: {sum(1 for u in filtered_urls if u and '/docs/' in u)}, resources: {sum(1 for u in filtered_urls if u and '/resources/' in u)})"
             )
 
             return filtered_urls

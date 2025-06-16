@@ -5,6 +5,7 @@ Content parser for extracting and converting HTML to Markdown
 import json
 import logging
 import re
+from typing import Any
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup, Tag
@@ -24,8 +25,8 @@ class ContentParser:
         self.sibling_parser = SiblingNavigationParser(base_url)
 
     async def extract_main_content_from_page(
-        self, page, page_url: str
-    ) -> tuple[str | None, str | None, dict]:
+        self, page: Any, page_url: str
+    ) -> tuple[str | None, str | None, dict[str, Any]]:
         """Extract main content, title, and sibling navigation info from Playwright page"""
         # Extract sibling navigation info with "Show more" handling
         sibling_info = await self.sibling_parser.extract_sibling_info_from_page(page, page_url)
@@ -79,13 +80,13 @@ class ContentParser:
 
         return None
 
-    def _find_content_in_state(self, obj: dict, path: str = "") -> str | None:
+    def _find_content_in_state(self, obj: dict[Any, Any] | list[Any], path: str = "") -> str | None:
         """Recursively search for content in React state"""
         if isinstance(obj, dict):
             # Look for content indicators
             for key in ["body", "content", "articleBody", "html"]:
                 if key in obj and isinstance(obj[key], str) and len(obj[key]) > 100:
-                    return obj[key]
+                    return str(obj[key])
 
             # Recurse into nested objects
             for key, value in obj.items():
@@ -104,7 +105,7 @@ class ContentParser:
 
     def _extract_metadata_from_initial_state(self, html: str) -> dict[str, str | None]:
         """Extract title and description from React initial state"""
-        metadata = {"title": None, "description": None}
+        metadata: dict[str, str | None] = {"title": None, "description": None}
         soup = BeautifulSoup(html, "html.parser")
 
         # Look for the React initial state
@@ -214,7 +215,9 @@ class ContentParser:
             logger.warning(f"No main content found for {page_url}")
             return None, title
 
-    def extract_main_content(self, html: str, page_url: str) -> tuple[str | None, str | None, dict]:
+    def extract_main_content(
+        self, html: str, page_url: str
+    ) -> tuple[str | None, str | None, dict[str, Any]]:
         """Extract main content, title, and sibling navigation info from HTML"""
         # Extract sibling navigation info
         sibling_info = self.sibling_parser.extract_sibling_info(html, page_url)
@@ -259,11 +262,13 @@ class ContentParser:
     def _extract_meta_title(self, soup: BeautifulSoup) -> str | None:
         """Extract title from meta tag with itemprop='name'"""
         meta_tag = soup.find("meta", {"itemprop": "name"})
-        if meta_tag and meta_tag.get("content"):
-            return meta_tag.get("content").strip()
+        if meta_tag and isinstance(meta_tag, Tag):
+            content = meta_tag.get("content")
+            if content and isinstance(content, str):
+                return content.strip()
         return None
 
-    def _extract_breadcrumb_data(self, soup: BeautifulSoup) -> dict | None:
+    def _extract_breadcrumb_data(self, soup: BeautifulSoup) -> dict[str, Any] | None:
         """Extract breadcrumb data from JSON-LD script"""
         import json
 
@@ -301,7 +306,7 @@ class ContentParser:
 
         return None
 
-    def _clean_content(self, content: Tag, page_url: str):
+    def _clean_content(self, content: Tag, page_url: str) -> None:
         """Clean and prepare content for conversion"""
         # First, remove any content before the first H1
         h1 = content.find("h1")
@@ -407,16 +412,17 @@ class ContentParser:
 
         # Also remove other common Confluence macros
         macro_elements = content.select("div[data-macro-name]")
-        removed_macros = []
+        removed_macros: list[str] = []
         for element in macro_elements:
-            macro_name = element.get("data-macro-name", "")
+            macro_name_attr = element.get("data-macro-name", "")
+            macro_name = macro_name_attr if isinstance(macro_name_attr, str) else ""
             if macro_name in ["details", "expand", "info", "warning", "note", "panel"]:
                 removed_macros.append(macro_name)
                 element.decompose()
 
         if removed_macros:
             logger.debug(
-                f"Removed Confluence macros from {page_url}: {', '.join(set(removed_macros))}"
+                f"Removed Confluence macros from {page_url}: {', '.join(list(set(removed_macros)))}"
             )
 
         # Remove edit buttons and internal UI elements
@@ -460,7 +466,7 @@ class ContentParser:
         for link in content.find_all("a"):
             self._process_link(link, page_url)
 
-    def _process_image(self, img: Tag, page_url: str):
+    def _process_image(self, img: Tag, page_url: str) -> None:
         """Process image tags and collect URLs"""
         src = img.get("src", "")
         if isinstance(src, list):
@@ -490,7 +496,7 @@ class ContentParser:
         if not img.get("alt"):
             img["alt"] = "Image"
 
-    def _process_link(self, link: Tag, page_url: str):
+    def _process_link(self, link: Tag, page_url: str) -> None:
         """Process link tags"""
         href = link.get("href", "")
         if isinstance(href, list):
@@ -514,7 +520,7 @@ class ContentParser:
         html_content: str,
         page_url: str,
         title: str | None = None,
-        page_metadata: dict | None = None,
+        page_metadata: dict[str, Any] | None = None,
     ) -> str:
         """Convert HTML content to Markdown with enhanced frontmatter"""
         # Parse HTML
@@ -554,7 +560,8 @@ class ContentParser:
 
         # Convert panel divs to Obsidian callouts before markdown conversion
         for panel in soup.select("div[data-obsidian-callout]"):
-            callout_type = panel.get("data-obsidian-callout", "info")
+            callout_attr = panel.get("data-obsidian-callout", "info")
+            callout_type = callout_attr if isinstance(callout_attr, str) else "info"
 
             # Map panel types to Obsidian callout types
             type_mapping = {
@@ -630,7 +637,7 @@ class ContentParser:
         # Pattern to match markdown links: [text](url)
         link_pattern = r"\[([^\]]+)\]\(([^)]+)\)"
 
-        def convert_link(match):
+        def convert_link(match: re.Match[str]) -> str:
             text = match.group(1)
             url = match.group(2)
 
@@ -684,14 +691,14 @@ class ContentParser:
 
         return markdown
 
-    def _convert_to_wikilinks(self, markdown: str, current_page_url: str) -> str:
-        """Convert internal links to wikilinks with relative paths"""
+    def _fix_malformed_wikilinks(self, markdown: str, current_page_url: str) -> str:
+        """Fix malformed wikilinks with URLs in them"""
 
         # First fix any malformed wikilinks with URLs in them
         # Pattern: [[slug/ "url"|text]] or [[slug/"|text]]
         malformed_pattern = r'\[\[([^|\]]+?)/?(?:\s*"[^"|\]]*")?\|([^\]]+)\]\]'
 
-        def fix_malformed(match):
+        def fix_malformed(match: re.Match[str]) -> str:
             slug = match.group(1).strip().rstrip('/"')
             text = match.group(2)
             # Convert slug to proper filename
@@ -705,7 +712,7 @@ class ContentParser:
         # Pattern to match markdown links: [text](url) or [text](url "title")
         link_pattern = r'\[([^\]]+)\]\(([^"\s)]+)(?:\s*"[^"]*")?\)'
 
-        def convert_link(match):
+        def convert_link(match: re.Match[str]) -> str:
             text = match.group(1)
             url = match.group(2)
 

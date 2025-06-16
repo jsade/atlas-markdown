@@ -4,7 +4,6 @@ Handle HTTP redirects to avoid duplicate content
 
 import logging
 from pathlib import Path
-from typing import Dict, Optional, Set
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +12,8 @@ class RedirectHandler:
     """Tracks and handles URL redirects to avoid duplicate content"""
 
     def __init__(self) -> None:
-        self.redirects: Dict[str, str] = {}  # Map of original URL to final URL
-        self.final_urls: Dict[str, str] = {}  # Map of final URL to file path
+        self.redirects: dict[str, str] = {}  # Map of original URL to final URL
+        self.final_urls: dict[str, str] = {}  # Map of final URL to file path
 
     def add_redirect(self, original_url: str, final_url: str) -> None:
         """Record a redirect from original URL to final URL"""
@@ -30,11 +29,11 @@ class RedirectHandler:
         # If the final URL was already scraped, this is a duplicate
         return final_url in self.final_urls
 
-    def get_canonical_file(self, url: str) -> Optional[str]:
+    def get_canonical_file(self, url: str) -> str | None:
         """Get the canonical file path for a URL (following redirects)"""
         # Follow redirect chain
         current_url = url
-        seen: Set[str] = set()
+        seen: set[str] = set()
 
         while current_url in self.redirects:
             if current_url in seen:

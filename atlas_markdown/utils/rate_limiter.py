@@ -6,9 +6,9 @@ import asyncio
 import logging
 import random
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from functools import wraps
-from typing import Any, Awaitable, Optional, Tuple, Type, TypeVar
+from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -84,8 +84,8 @@ def calculate_backoff(attempt: int, config: RetryConfig) -> float:
 async def retry_async(
     func: Callable[..., Awaitable[T]],
     *args: Any,
-    config: Optional[RetryConfig] = None,
-    retry_on: Tuple[Type[Exception], ...] = (Exception,),
+    config: RetryConfig | None = None,
+    retry_on: tuple[type[Exception], ...] = (Exception,),
     **kwargs: Any,
 ) -> T:
     """
@@ -106,7 +106,7 @@ async def retry_async(
     if config is None:
         config = RetryConfig()
 
-    last_exception: Optional[Exception] = None
+    last_exception: Exception | None = None
 
     for attempt in range(1, config.max_attempts + 1):
         try:
@@ -135,7 +135,7 @@ async def retry_async(
 
 
 def with_retry(
-    config: Optional[RetryConfig] = None, retry_on: Tuple[Type[Exception], ...] = (Exception,)
+    config: RetryConfig | None = None, retry_on: tuple[type[Exception], ...] = (Exception,)
 ) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]:
     """Decorator for adding retry logic to async functions"""
 
@@ -152,9 +152,7 @@ def with_retry(
 class ThrottledScraper:
     """Base class for rate-limited scraping operations"""
 
-    def __init__(
-        self, rate_limiter: RateLimiter, retry_config: Optional[RetryConfig] = None
-    ) -> None:
+    def __init__(self, rate_limiter: RateLimiter, retry_config: RetryConfig | None = None) -> None:
         self.rate_limiter = rate_limiter
         self.retry_config = retry_config or RetryConfig()
 

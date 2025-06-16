@@ -9,7 +9,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import click
 from dotenv import load_dotenv
@@ -39,7 +39,7 @@ load_dotenv()
 console = Console()
 
 
-def validate_environment() -> Dict[str, Any]:
+def validate_environment() -> dict[str, Any]:
     """Validate required environment variables with robust error handling"""
     required_vars = {
         "BASE_URL": "https://support.atlassian.com/jira-service-management-cloud",
@@ -61,7 +61,7 @@ def validate_environment() -> Dict[str, Any]:
         "DRY_RUN_DEFAULT": "false",
     }
 
-    env_config: Dict[str, Any] = {}
+    env_config: dict[str, Any] = {}
     missing_vars = []
     invalid_vars = []
 
@@ -241,11 +241,11 @@ def validate_environment() -> Dict[str, Any]:
     return env_config
 
 
-def setup_logging(verbose: bool, env_config: Dict[str, Any]) -> None:
+def setup_logging(verbose: bool, env_config: dict[str, Any]) -> None:
     """Configure logging with Rich handler and optional file logging"""
     level = logging.DEBUG if verbose else logging.INFO
 
-    handlers: List[logging.Handler] = [RichHandler(console=console, rich_tracebacks=True)]
+    handlers: list[logging.Handler] = [RichHandler(console=console, rich_tracebacks=True)]
 
     # Add file handler if logging is enabled
     if env_config.get("LOG_ENABLED", False):
@@ -285,7 +285,7 @@ def setup_logging(verbose: bool, env_config: Dict[str, Any]) -> None:
 class DocumentationScraper(ThrottledScraper):
     """Main scraper orchestrator"""
 
-    def __init__(self, config: Dict[str, Any], env_config: Dict[str, Any]) -> None:
+    def __init__(self, config: dict[str, Any], env_config: dict[str, Any]) -> None:
         # Initialize configuration
         self.config = config
         self.env_config = env_config
@@ -323,11 +323,11 @@ class DocumentationScraper(ThrottledScraper):
         self.domain_restriction = env_config["DOMAIN_RESTRICTION"]
 
         self.retry_delay_minutes = 5
-        self.site_hierarchy: Optional[Dict[str, Any]] = None  # Will be populated from initial state
+        self.site_hierarchy: dict[str, Any] | None = None  # Will be populated from initial state
         self.create_redirect_stubs = config.get("create_redirect_stubs", False)
 
         # Track runtime and pages scraped
-        self.start_time: Optional[float] = None
+        self.start_time: float | None = None
         self.pages_scraped = 0
 
     async def run(self) -> None:
@@ -612,7 +612,7 @@ class DocumentationScraper(ThrottledScraper):
             # Process pages with worker pool
             semaphore = asyncio.Semaphore(self.config["workers"])
 
-            async def process_page(page_info: Dict[str, Any]) -> None:
+            async def process_page(page_info: dict[str, Any]) -> None:
                 async with semaphore:
                     url = page_info["url"]
                     await self.scrape_single_page(url)
@@ -652,13 +652,13 @@ class DocumentationScraper(ThrottledScraper):
             await self.rate_limiter.acquire()
 
             # Scrape the page with retry
-            async def scrape_with_browser_and_extract() -> Tuple[
-                Optional[str],
-                Optional[str],
-                Optional[Dict[str, Any]],
-                Optional[str],
-                Optional[str],
-                Optional[str],
+            async def scrape_with_browser_and_extract() -> tuple[
+                str | None,
+                str | None,
+                dict[str, Any] | None,
+                str | None,
+                str | None,
+                str | None,
             ]:
                 async with DocumentationCrawler(self.base_url) as crawler:
                     if crawler.page is None:
@@ -714,12 +714,12 @@ class DocumentationScraper(ThrottledScraper):
             result = await self.throttled_request(scrape_with_browser_and_extract)
             if result is None:
                 raise ValueError("Failed to scrape page")
-            content_html: Optional[str]
-            title: Optional[str]
-            sibling_info: Optional[Dict[str, Any]]
-            html: Optional[str]
-            final_url: Optional[str]
-            canonical_file: Optional[str]
+            content_html: str | None
+            title: str | None
+            sibling_info: dict[str, Any] | None
+            html: str | None
+            final_url: str | None
+            canonical_file: str | None
             content_html, title, sibling_info, html, final_url, canonical_file = result
 
             # Check if this was a redirect to already scraped content
@@ -837,7 +837,7 @@ class DocumentationScraper(ThrottledScraper):
             self.circuit_breaker.record_success()
             self.failed_pages_count = 0  # Reset consecutive failures
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             error_msg = "Timeout while scraping page"
             self.logger.error(f"{error_msg}: {url}")
             await self.state_manager.update_page_status(
@@ -900,7 +900,7 @@ class DocumentationScraper(ThrottledScraper):
                 # Update markdown files with local image paths
                 await self.update_image_references(downloader.get_all_mappings())
 
-    async def update_image_references(self, image_map: Dict[str, str]) -> None:
+    async def update_image_references(self, image_map: dict[str, str]) -> None:
         """Update image references in markdown files"""
         # Get all completed pages
         if not self.state_manager._db:
@@ -963,7 +963,7 @@ class DocumentationScraper(ThrottledScraper):
             retry_workers = max(1, self.config["workers"] // 2)
             semaphore = asyncio.Semaphore(retry_workers)
 
-            async def retry_page(page_info: Dict[str, Any]) -> None:
+            async def retry_page(page_info: dict[str, Any]) -> None:
                 async with semaphore:
                     url = page_info["url"]
                     retry_count = page_info.get("retry_count", 0)
@@ -1085,7 +1085,7 @@ class DocumentationScraper(ThrottledScraper):
             task = progress.add_task("Linting markdown files...", total=None)
 
             # Lint all files and fix in place
-            # asyncio.to_thread is Python 3.9+, use run_in_executor for Python 3.8
+            # asyncio.to_thread is available in Python 3.9+
             import concurrent.futures
 
             loop = asyncio.get_event_loop()
@@ -1107,7 +1107,7 @@ class DocumentationScraper(ThrottledScraper):
             console.print(f"[dim]Linting report saved to: {report_path}[/dim]")
 
             # Show summary of issue types
-            issue_types: Dict[str, int] = {}
+            issue_types: dict[str, int] = {}
             for file_issues in issues.values():
                 for issue in file_issues:
                     issue_types[issue.issue_type] = issue_types.get(issue.issue_type, 0) + 1
@@ -1211,9 +1211,9 @@ class DocumentationScraper(ThrottledScraper):
     help="Create stub files for redirected URLs (default: skip duplicates)",
 )
 def scrape(
-    output: Optional[str],
-    workers: Optional[int],
-    delay: Optional[float],
+    output: str | None,
+    workers: int | None,
+    delay: float | None,
     resume: bool,
     dry_run: bool,
     verbose: bool,

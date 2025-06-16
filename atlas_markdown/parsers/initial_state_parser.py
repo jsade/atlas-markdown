@@ -67,7 +67,7 @@ class InitialStateParser:
     ):
         """Process a childList structure"""
         for item in child_list:
-            page_info = {
+            page_info: dict[str, Any] = {
                 "id": item.get("id"),
                 "title": item.get("title"),
                 "slug": item.get("slug", ""),
@@ -108,7 +108,7 @@ class InitialStateParser:
 
     def _process_navigation_item(self, item: dict[str, Any], navigation: list[dict[str, Any]]):
         """Process a single navigation item"""
-        page_info = {
+        page_info: dict[str, Any] = {
             "id": item.get("id"),
             "title": item.get("title"),
             "url": item.get("url") or item.get("href") or item.get("slug"),
@@ -126,7 +126,8 @@ class InitialStateParser:
                 self._process_navigation_items(item[child_key], page_info["children"])
 
         # Only add if URL is within our base URL
-        if page_info.get("url") and page_info["url"].startswith(self.base_url):
+        url = page_info.get("url")
+        if url and isinstance(url, str) and url.startswith(self.base_url):
             navigation.append(page_info)
 
     def _process_entries(self, entries: Any, navigation: list[dict[str, Any]]):
@@ -206,28 +207,33 @@ class InitialStateParser:
         """Extract the topicTitle from initial state data"""
         # Direct access to topicTitle
         if "topicTitle" in state_data:
-            return state_data["topicTitle"]
+            title = state_data["topicTitle"]
+            return str(title) if title is not None else None
 
         # Check in entry
         if "entry" in state_data and isinstance(state_data["entry"], dict):
             if "topicTitle" in state_data["entry"]:
-                return state_data["entry"]["topicTitle"]
+                title = state_data["entry"]["topicTitle"]
+                return str(title) if title is not None else None
             if "title" in state_data["entry"]:
-                return state_data["entry"]["title"]
+                title = state_data["entry"]["title"]
+                return str(title) if title is not None else None
 
         # Check in various other locations
         for key in ["topic", "page", "content"]:
             if key in state_data and isinstance(state_data[key], dict):
                 if "title" in state_data[key]:
-                    return state_data[key]["title"]
+                    title = state_data[key]["title"]
+                    return str(title) if title is not None else None
                 if "topicTitle" in state_data[key]:
-                    return state_data[key]["topicTitle"]
+                    title = state_data[key]["topicTitle"]
+                    return str(title) if title is not None else None
 
         return None
 
     def extract_topic_metadata(self, state_data: dict[str, Any]) -> dict[str, str | None]:
         """Extract topic title and description from initial state data"""
-        metadata = {"title": None, "description": None}
+        metadata: dict[str, str | None] = {"title": None, "description": None}
 
         # Direct access to topicTitle and description
         if "topicTitle" in state_data:

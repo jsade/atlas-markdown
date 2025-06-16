@@ -45,7 +45,7 @@ def print_info(message):
 
 
 def check_python_version():
-    """Check if Python version is 3.8 or higher"""
+    """Check if Python version is 3.11 or higher"""
     print_info("Checking Python version...")
     print_success(f"Python {sys.version.split()[0]} detected")
 
@@ -227,7 +227,7 @@ build/
     else:
         pyproject_content = """[tool.black]
 line-length = 100
-target-version = ['py38']
+target-version = ['py311']
 
 [tool.ruff]
 line-length = 100
@@ -240,7 +240,7 @@ pythonpath = ["."]
 asyncio_mode = "auto"
 
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true

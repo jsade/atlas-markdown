@@ -5,6 +5,7 @@ Page crawler for discovering Atlassian documentation pages
 import asyncio
 import logging
 import re
+from typing import Any, Self
 from urllib.parse import urljoin, urlparse, urlunparse
 
 from playwright.async_api import Browser, Page, async_playwright
@@ -24,14 +25,14 @@ class DocumentationCrawler:
         self.browser: Browser | None = None
         self.page: Page | None = None
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> Self:
         await self.initialize()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         await self.close()
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize browser with error recovery"""
         max_retries = 3
 
@@ -57,7 +58,7 @@ class DocumentationCrawler:
                 self.page.on(
                     "pageerror", lambda exc: logger.warning(f"Page JavaScript error: {exc}")
                 )
-                self.page.on("crash", self._handle_page_crash)
+                self.page.on("crash", lambda _: self._handle_page_crash())
 
                 # Set user agent and viewport
                 await self.page.set_extra_http_headers(
@@ -80,17 +81,20 @@ class DocumentationCrawler:
                         f"Failed to initialize browser after {max_retries} attempts"
                     ) from e
 
-    async def _handle_page_crash(self):
+    async def _handle_page_crash(self) -> None:
         """Handle page crash by creating new page"""
         logger.error("Page crashed! Creating new page...")
         try:
-            self.page = await self.browser.new_page()
-            self.page.on("pageerror", lambda exc: logger.warning(f"Page JavaScript error: {exc}"))
-            self.page.on("crash", self._handle_page_crash)
+            if self.browser:
+                self.page = await self.browser.new_page()
+                self.page.on(
+                    "pageerror", lambda exc: logger.warning(f"Page JavaScript error: {exc}")
+                )
+                self.page.on("crash", lambda _: self._handle_page_crash())
         except Exception as e:
             logger.error(f"Failed to create new page after crash: {e}")
 
-    async def close(self):
+    async def close(self) -> None:
         """Close browser"""
         try:
             if self.page:
@@ -165,7 +169,10 @@ class DocumentationCrawler:
 
     async def extract_navigation_links(self) -> list[str]:
         """Extract links from the navigation tree"""
-        links = []
+        links: list[str] = []
+
+        if not self.page:
+            return links
 
         try:
             # Wait for navigation to load
@@ -191,7 +198,10 @@ class DocumentationCrawler:
 
     async def extract_page_links(self) -> list[str]:
         """Extract all links from the current page content"""
-        links = []
+        links: list[str] = []
+
+        if not self.page:
+            return links
 
         try:
             # Get all links in the main content area
@@ -225,7 +235,11 @@ class DocumentationCrawler:
 
     async def discover_from_sitemap(self) -> list[str]:
         """Try to discover pages from sitemap"""
-        links = []
+        links: list[str] = []
+
+        if not self.page:
+            return links
+
         sitemap_urls = [
             f"{self.base_url}/sitemap.xml",
             f"{self.base_url}/sitemap",
@@ -262,8 +276,11 @@ class DocumentationCrawler:
         Returns:
             Tuple of (new_urls, final_url) where final_url is the URL after redirects
         """
-        new_urls = set()
+        new_urls: set[str] = set()
         final_url = None
+
+        if not self.page:
+            return new_urls, final_url
 
         try:
             # Navigate to the page with timeout
@@ -318,7 +335,7 @@ class DocumentationCrawler:
                 if link not in self.discovered_urls:
                     new_urls.add(link)
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error(f"Timeout loading {url}")
             # Try with reduced wait
             try:
@@ -383,6 +400,9 @@ class DocumentationCrawler:
 
     async def get_page_title(self, url: str) -> str | None:
         """Get the title of a page"""
+        if not self.page:
+            return None
+
         try:
             await self.page.goto(url, wait_until="networkidle")
 

@@ -19,7 +19,7 @@ class HealthMonitor:
     def __init__(self, output_dir: str):
         self.output_dir = Path(output_dir)
         self.start_time = datetime.now()
-        self.warnings = []
+        self.warnings: list[str] = []
 
     async def check_system_health(self) -> dict[str, Any]:
         """Perform comprehensive health check"""
@@ -203,7 +203,7 @@ class HealthMonitor:
             logger.error(f"Output directory check failed: {e}")
             return {"healthy": False, "error": str(e), "message": f"Output directory error: {e}"}
 
-    def add_warning(self, warning: str):
+    def add_warning(self, warning: str) -> None:
         """Add a warning to the monitor"""
         self.warnings.append(f"[{datetime.now().isoformat()}] {warning}")
         if len(self.warnings) > 100:

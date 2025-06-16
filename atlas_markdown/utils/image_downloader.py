@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import logging
 from pathlib import Path
+from typing import Any
 from urllib.parse import unquote, urlparse
 
 import aiofiles
@@ -24,14 +25,14 @@ class ImageDownloader:
         self.client: httpx.AsyncClient | None = None
         self.image_map: dict[str, str] = {}  # Maps original URL to local path
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "ImageDownloader":
         await self.initialize()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         await self.close()
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize HTTP client and create directories"""
         self.images_dir.mkdir(parents=True, exist_ok=True)
 
@@ -43,7 +44,7 @@ class ImageDownloader:
             },
         )
 
-    async def close(self):
+    async def close(self) -> None:
         """Close HTTP client"""
         if self.client:
             await self.client.aclose()
@@ -116,6 +117,8 @@ class ImageDownloader:
 
             # First, make a HEAD request to check size
             try:
+                if not self.client:
+                    raise RuntimeError("HTTP client not initialized")
                 head_response = await self.client.head(image_url, follow_redirects=True)
                 content_length = int(head_response.headers.get("Content-Length", 0))
 
@@ -135,6 +138,8 @@ class ImageDownloader:
 
             while redirect_count < 10:
                 try:
+                    if not self.client:
+                        raise RuntimeError("HTTP client not initialized")
                     response = await self.client.get(
                         current_url, follow_redirects=False, timeout=30.0
                     )
@@ -214,7 +219,7 @@ class ImageDownloader:
             return False, None, error_msg
 
     async def download_images(
-        self, image_urls: list, page_url: str, max_concurrent: int = 5
+        self, image_urls: list[str], page_url: str, max_concurrent: int = 5
     ) -> dict[str, str]:
         """
         Download multiple images concurrently
@@ -222,7 +227,7 @@ class ImageDownloader:
         """
         semaphore = asyncio.Semaphore(max_concurrent)
 
-        async def download_with_semaphore(url: str):
+        async def download_with_semaphore(url: str) -> tuple[str, str | None]:
             async with semaphore:
                 success, local_path, error = await self.download_image(url, page_url)
                 if success and local_path:

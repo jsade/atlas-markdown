@@ -1,5 +1,5 @@
 {
-	"pythonVersion": "3.8",
+	"pythonVersion": "3.11",
 	"reportGeneralTypeIssues": "error",
 	"reportMissingImports": "error",
 	"reportMissingModuleSource": "none",

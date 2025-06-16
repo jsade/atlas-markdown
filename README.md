@@ -48,7 +48,7 @@ A robust command-line tool for transforming selected <strong><a href="https://su
 
 ## Requirements
 
-- Python 3.8+
+- Python 3.11+
 - macOS (optimized for) or Linux. Windows might work :shrug:
 
 ## Quick Start

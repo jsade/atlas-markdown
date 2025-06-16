@@ -5,7 +5,8 @@ Link resolver for mapping URLs to actual filenames
 import logging
 import re
 from pathlib import Path
-from typing import Any, Dict, Match
+from re import Match
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -15,8 +16,8 @@ class LinkResolver:
 
     def __init__(self, base_url: str):
         self.base_url = base_url.rstrip("/")
-        self.url_to_filename_map: Dict[str, str] = {}
-        self.title_to_filename_map: Dict[str, str] = {}
+        self.url_to_filename_map: dict[str, str] = {}
+        self.title_to_filename_map: dict[str, str] = {}
 
     def add_page_mapping(self, url: str, title: str, file_path: str) -> None:
         """Add a mapping from URL and title to actual filename"""
@@ -196,7 +197,7 @@ class LinkResolver:
         except Exception as e:
             logger.error(f"Failed to load mappings from state manager: {e}")
 
-    def get_stats(self) -> Dict[str, int]:
+    def get_stats(self) -> dict[str, int]:
         """Get statistics about the resolver"""
         return {
             "url_mappings": len(self.url_to_filename_map),

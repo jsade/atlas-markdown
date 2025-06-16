@@ -6,7 +6,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 from urllib.parse import unquote, urlparse
 
 import aiofiles
@@ -23,8 +23,8 @@ class FileSystemManager:
         self.base_path = urlparse(base_url).path.rstrip("/")
 
     def url_to_filepath(
-        self, url: str, sibling_info: Optional[Dict[str, Any]] = None
-    ) -> Tuple[Path, str]:
+        self, url: str, sibling_info: dict[str, Any] | None = None
+    ) -> tuple[Path, str]:
         """
         Convert URL to local file path, using sibling info or breadcrumb data if available
         Returns: (directory_path, filename)
@@ -108,7 +108,7 @@ class FileSystemManager:
         return directory, filename
 
     async def save_content(
-        self, url: str, content: str, sibling_info: Optional[Dict[str, Any]] = None
+        self, url: str, content: str, sibling_info: dict[str, Any] | None = None
     ) -> str:
         """
         Save content to appropriate file location
@@ -230,7 +230,7 @@ class FileSystemManager:
         except ValueError:
             return str(file_path)
 
-    async def create_index(self, pages: List[Dict[str, Any]]) -> str:
+    async def create_index(self, pages: list[dict[str, Any]]) -> str:
         """Create an index file with all scraped pages"""
         index_content = """# Documentation Index
 
@@ -239,7 +239,7 @@ class FileSystemManager:
 """
 
         # Group pages by directory - only include docs/ content
-        page_tree: Dict[str, Any] = {}
+        page_tree: dict[str, Any] = {}
 
         for page in pages:
             if page.get("status") != "completed":
@@ -290,7 +290,7 @@ class FileSystemManager:
 
         # Generate index content with proper heading hierarchy
         def generate_tree_markdown(
-            tree: Dict[str, Any], level: int = 2
+            tree: dict[str, Any], level: int = 2
         ) -> str:  # Start with ## (H2)
             markdown = ""
 
@@ -397,7 +397,7 @@ class FileSystemManager:
 
         return cleaned
 
-    def _count_pages_in_tree(self, tree: Dict[str, Any]) -> int:
+    def _count_pages_in_tree(self, tree: dict[str, Any]) -> int:
         """Count total pages in the tree structure"""
         count = 0
         for value in tree.values():
