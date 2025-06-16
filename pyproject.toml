@@ -50,6 +50,7 @@ upload_to_release = true
 build_command = "python -m build"
 commit_parser = "conventional"
 major_on_zero = false
+allow_zero_version = true
 tag_format = "v{version}"
 
 [tool.semantic_release.commit_parser_options]
