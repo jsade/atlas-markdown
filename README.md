@@ -1,5 +1,5 @@
 
-<h1><p align="center">Atlassian Documentation<br/>to Markdown Converter</p></h1>
+<h1><p align="center">Atlas Markdown</p></h1>
 
 <img src="docs/images/obsidian.png" alt="Obsidian" align="right" height="100%"/>
 <div style="width: 100%; text-align: center; margin-bottom: 20px; display: flex; flex-wrap: wrap; justify-content: center;">
@@ -53,7 +53,7 @@ A robust command-line tool for transforming selected <strong><a href="https://su
 
 ## Quick Start
 
-Download the [latest](https://github.com/jsade/atlassian-docs-to-markdown/releases/latest) release and extract it to a suitable folder. 
+Download the [latest](https://github.com/jsade/atlas-markdown/releases/latest) release and extract it to a suitable folder.
 
 ```bash
 # 1. Run the initialization script
@@ -70,7 +70,7 @@ cp .env.example .env
 python utils/test_environment.py
 
 # 5. Run the script
-./run.sh
+atlas-markdown
 ```
 
 ## How It Works
@@ -237,7 +237,7 @@ The following rules are applied during the linting phase (can be skipped with `-
 ## Usage
 
 ```bash
-./run.sh <options> <arguments>
+atlas-markdown <options> <arguments>
 ```
 
 ### Command Line Options

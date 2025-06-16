@@ -160,9 +160,11 @@ class MarkdownLinter:
                             line_number=content[: match.start()].count("\n") + 1,
                             issue_type="multiline_wiki_link",
                             description="Fixed wiki link spanning multiple lines",
-                            original=match.group(0)[:50] + "..."
-                            if len(match.group(0)) > 50
-                            else match.group(0),
+                            original=(
+                                match.group(0)[:50] + "..."
+                                if len(match.group(0)) > 50
+                                else match.group(0)
+                            ),
                             fixed=fixed_matches[i].group(0) if i < len(fixed_matches) else "Fixed",
                         )
                     )

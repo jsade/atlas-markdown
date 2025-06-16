@@ -92,7 +92,6 @@ class ImageDownloader:
         Download a single image with validation and size limits
         Returns: (success, local_path, error_message)
         """
-        import imghdr
         import ssl
 
         try:
@@ -172,28 +171,10 @@ class ImageDownloader:
             if content_size == 0:
                 return False, None, "Empty image content"
 
-            # Verify it's actually an image
-            image_type = imghdr.what(None, content)
-            if not image_type and "svg" not in content_type:
+            # Determine file extension from content type or magic bytes
+            ext = self._get_image_extension(content, content_type)
+            if not ext:
                 return False, None, f"Invalid image format (content-type: {content_type})"
-
-            # Determine file extension
-            if image_type:
-                ext = f".{image_type}"
-            elif "svg" in content_type:
-                ext = ".svg"
-            elif "webp" in content_type:
-                ext = ".webp"
-            else:
-                # Try to get from content type
-                if "png" in content_type:
-                    ext = ".png"
-                elif "gif" in content_type:
-                    ext = ".gif"
-                elif "jpeg" in content_type or "jpg" in content_type:
-                    ext = ".jpg"
-                else:
-                    ext = ".jpg"  # Default
 
             # Update filename with correct extension
             if not str(full_path).endswith(ext):
@@ -263,3 +244,59 @@ class ImageDownloader:
     def get_all_mappings(self) -> dict[str, str]:
         """Get all image URL to local path mappings"""
         return self.image_map.copy()
+
+    def _get_image_extension(self, content: bytes, content_type: str) -> str | None:
+        """
+        Determine image file extension from content and content type.
+        This replaces the deprecated imghdr module.
+        """
+        # Check content type first
+        if content_type:
+            if "svg" in content_type:
+                return ".svg"
+            elif "webp" in content_type:
+                return ".webp"
+            elif "png" in content_type:
+                return ".png"
+            elif "gif" in content_type:
+                return ".gif"
+            elif "jpeg" in content_type or "jpg" in content_type:
+                return ".jpg"
+            elif "bmp" in content_type:
+                return ".bmp"
+            elif "ico" in content_type:
+                return ".ico"
+
+        # Check magic bytes if content type doesn't help
+        if len(content) < 12:
+            return None
+
+        # PNG magic bytes
+        if content[:8] == b"\x89PNG\r\n\x1a\n":
+            return ".png"
+
+        # JPEG magic bytes
+        elif content[:3] == b"\xff\xd8\xff":
+            return ".jpg"
+
+        # GIF magic bytes
+        elif content[:6] in (b"GIF87a", b"GIF89a"):
+            return ".gif"
+
+        # WebP magic bytes
+        elif content[:4] == b"RIFF" and content[8:12] == b"WEBP":
+            return ".webp"
+
+        # BMP magic bytes
+        elif content[:2] == b"BM":
+            return ".bmp"
+
+        # ICO magic bytes
+        elif content[:4] == b"\x00\x00\x01\x00":
+            return ".ico"
+
+        # SVG detection (text-based)
+        elif b"<svg" in content[:1024] or b"<?xml" in content[:100]:
+            return ".svg"
+
+        return None

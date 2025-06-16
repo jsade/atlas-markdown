@@ -220,12 +220,12 @@ class CircuitBreaker:
         self.last_failure_time: datetime | None = None
         self.state = "closed"  # closed, open, half-open
 
-    def record_success(self):
+    def record_success(self) -> None:
         """Record a successful operation"""
         self.failure_count = 0
         self.state = "closed"
 
-    def record_failure(self):
+    def record_failure(self) -> None:
         """Record a failed operation"""
         self.failure_count += 1
         self.last_failure_time = datetime.now()
@@ -259,7 +259,7 @@ class CircuitBreaker:
             "last_failure": self.last_failure_time.isoformat() if self.last_failure_time else None,
         }
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset the circuit breaker to closed state"""
         self.failure_count = 0
         self.state = "closed"

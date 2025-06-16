@@ -7,7 +7,7 @@ import tempfile
 
 import pytest
 
-from src.utils.state_manager import PageStatus, StateManager
+from atlas_markdown.utils.state_manager import PageStatus, StateManager
 
 
 @pytest.fixture

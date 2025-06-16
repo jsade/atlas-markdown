@@ -6,6 +6,7 @@ import logging
 import os
 import re
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import unquote, urlparse
 
 import aiofiles
@@ -21,141 +22,94 @@ class FileSystemManager:
         self.base_url = base_url.rstrip("/")
         self.base_path = urlparse(base_url).path.rstrip("/")
 
-    def url_to_filepath(self, url: str, sibling_info: dict = None) -> tuple[Path, str]:
+    def url_to_filepath(
+        self, url: str, sibling_info: Optional[Dict[str, Any]] = None
+    ) -> Tuple[Path, str]:
         """
         Convert URL to local file path, using sibling info or breadcrumb data if available
         Returns: (directory_path, filename)
         """
         logger.info(f"url_to_filepath called - URL: {url}")
 
-        # First check if we have breadcrumb data for directory structure
-        directory_from_breadcrumb = None
+        # Build complete directory hierarchy from both breadcrumb and sibling info
+        directory_parts = []
+        filename = None
+
+        # Determine base directory from URL
+        parsed = urlparse(url)
+        if "/docs/" in parsed.path:
+            directory_parts.append("docs")
+        elif "/resources/" in parsed.path:
+            directory_parts.append("resources")
+
+        # Add breadcrumb hierarchy if available
         if sibling_info and sibling_info.get("breadcrumb_data"):
             logger.info("Processing breadcrumb data...")
-            breadcrumb_path, _ = self._get_path_from_breadcrumbs(
-                sibling_info["breadcrumb_data"], url
-            )
-            if breadcrumb_path:
-                directory_from_breadcrumb = breadcrumb_path
-                logger.info(f"Using breadcrumb directory: {breadcrumb_path}")
+            breadcrumbs = sibling_info["breadcrumb_data"].get("breadcrumbs", [])
 
-        # Always use current_page_title for filename if available
-        if sibling_info and sibling_info.get("current_page_title"):
+            # Skip first two levels (Atlassian Support, Product Name) and exclude the last one (current page)
+            # The last breadcrumb is the current page, which should be the filename, not a directory
+            breadcrumbs_for_path = breadcrumbs[2:-1] if len(breadcrumbs) > 2 else []
+
+            for crumb in breadcrumbs_for_path:
+                name = crumb.get("name", "")
+                if name and name not in ["Resources", "Docs"]:
+                    clean_name = self._clean_for_filesystem(name)
+                    directory_parts.append(clean_name)
+
+            logger.info(f"Breadcrumb hierarchy: {' / '.join(directory_parts)}")
+
+        # Add sibling section folder if it's not already in the path
+        if sibling_info and sibling_info.get("section_heading"):
+            section_folder = self._clean_for_filesystem(sibling_info["section_heading"])
+
+            # Only add if it's not already the last part of the path
+            if not directory_parts or directory_parts[-1] != section_folder:
+                # Check if this should be a subdirectory or replace the last part
+                if sibling_info.get("is_section_index"):
+                    # This is the index page for this section
+                    directory_parts.append(section_folder)
+                    filename = "index.md"
+                else:
+                    # Regular page in section
+                    directory_parts.append(section_folder)
+
+            logger.info(f"After sibling info: {' / '.join(directory_parts)}")
+
+        # Use current_page_title for filename if available and not already set
+        if not filename and sibling_info and sibling_info.get("current_page_title"):
             filename = self._clean_for_filesystem(sibling_info["current_page_title"]) + ".md"
             logger.info(f"Using current_page_title for filename: {filename}")
 
-            # Use breadcrumb directory if available, otherwise determine from URL
-            if directory_from_breadcrumb:
-                return directory_from_breadcrumb, filename
-            else:
-                # Determine directory from URL structure
-                parsed = urlparse(url)
-                if "/docs/" in parsed.path:
-                    return self.output_dir / "docs", filename
-                elif "/resources/" in parsed.path:
-                    return self.output_dir / "resources", filename
-                else:
-                    return self.output_dir, filename
-
-        # If we have sibling info with a section heading, use that for folder structure
-        if sibling_info and sibling_info.get("section_heading"):
-            logger.info(
-                f"Processing sibling info with section_heading: {sibling_info.get('section_heading')}"
-            )
-            from ..parsers.sibling_navigation_parser import SiblingNavigationParser
-
-            parser = SiblingNavigationParser(self.base_url)
-            folder_name, filename = parser.get_folder_structure(sibling_info)
-
-            if folder_name:
-                # Determine if this is docs or resources based on URL
-                parsed = urlparse(url)
-                path = parsed.path
-
-                if "/docs/" in path:
-                    directory = self.output_dir / "docs" / folder_name
-                elif "/resources/" in path:
-                    directory = self.output_dir / "resources" / folder_name
-                else:
-                    # Fallback to root with folder
-                    directory = self.output_dir / folder_name
-
-                # If we got a filename from sibling parser, use it
-                if filename:
-                    return directory, filename
-                else:
-                    # Fall back to extracting filename from URL
-                    # This prevents using the section heading as filename
-                    url_path = parsed.path
-                    if self.base_path and url_path.startswith(self.base_path):
-                        url_path = url_path[len(self.base_path) :].lstrip("/")
-
-                    # Extract the last part of the URL as filename
-                    path_parts = [unquote(p) for p in url_path.split("/") if p]
-                    if path_parts and path_parts[-1]:
-                        # Convert URL slug to proper name
-                        filename = self._url_slug_to_proper_name(path_parts[-1]) + ".md"
-                        return directory, filename
-
-        # Fallback to original URL-based logic
-        parsed = urlparse(url)
-
-        # Get path relative to base URL
-        path = parsed.path
-        if self.base_path and path.startswith(self.base_path):
-            path = path[len(self.base_path) :].lstrip("/")
+        # Build final directory path
+        if directory_parts:
+            directory = self.output_dir / Path(*directory_parts)
         else:
-            path = path.lstrip("/")
+            directory = self.output_dir
 
-        # Handle empty path (homepage)
-        if not path:
-            return self.output_dir, "index.md"
-
-        # For top-level docs pages, use the slug as filename instead of index.md
-        # This prevents multiple pages being saved as index.md
-        if path.startswith("docs/") and path.count("/") == 1:
-            # This is a top-level docs page like docs/get-started-with-jira-service-management/
-            slug = path.split("/")[1].rstrip("/")
-            if slug:
-                filename = self._url_slug_to_proper_name(slug) + ".md"
-                return self.output_dir / "docs", filename
-
-        # Split path into parts
-        path_parts = [unquote(p) for p in path.split("/") if p]
-
-        # Clean path parts (remove invalid characters)
-        clean_parts = []
-        for part in path_parts:
-            # Convert URL slug to proper name if it looks like a slug
-            if "-" in part and " " not in part:
-                # This looks like a URL slug, convert it
-                part = self._url_slug_to_proper_name(part)
-
-            # Replace invalid filename characters
-            clean_part = re.sub(r'[<>:"|?*]', "_", part)
-            # Replace multiple underscores with single
-            clean_part = re.sub(r"_+", "_", clean_part)
-            # Remove trailing dots and spaces (Windows compatibility)
-            clean_part = clean_part.rstrip(". ")
-            clean_parts.append(clean_part)
-
-        # Determine if this is a directory or file
-        if path.endswith("/") or not path_parts[-1]:
-            # Directory URL - create index.md
-            directory = self.output_dir / Path(*clean_parts)
-            filename = "index.md"
-        else:
-            # File URL
-            if len(clean_parts) > 1:
-                directory = self.output_dir / Path(*clean_parts[:-1])
-                filename = f"{clean_parts[-1]}.md"
+        # If we still don't have a filename, extract from URL
+        if not filename:
+            # Check if URL ends with slash (directory URL)
+            if url.endswith("/") or parsed.path.endswith("/"):
+                filename = "index.md"
             else:
-                directory = self.output_dir
-                filename = f"{clean_parts[0]}.md"
+                # Extract from URL path
+                url_path = parsed.path
+                if self.base_path and url_path.startswith(self.base_path):
+                    url_path = url_path[len(self.base_path) :].lstrip("/")
 
+                path_parts = [unquote(p) for p in url_path.split("/") if p]
+                if path_parts and path_parts[-1]:
+                    filename = self._url_slug_to_proper_name(path_parts[-1]) + ".md"
+                else:
+                    filename = "index.md"
+
+        logger.info(f"Final path: {directory} / {filename}")
         return directory, filename
 
-    async def save_content(self, url: str, content: str, sibling_info: dict = None) -> str:
+    async def save_content(
+        self, url: str, content: str, sibling_info: Optional[Dict[str, Any]] = None
+    ) -> str:
         """
         Save content to appropriate file location
         Returns the file path relative to output directory
@@ -213,7 +167,7 @@ class FileSystemManager:
         if file_path.exists():
             # Check if content is the same
             try:
-                async with aiofiles.open(file_path, "r", encoding="utf-8") as f:
+                async with aiofiles.open(file_path, encoding="utf-8") as f:
                     existing_content = await f.read()
 
                 if existing_content.strip() == content.strip():
@@ -239,8 +193,10 @@ class FileSystemManager:
                 # Continue with new filename
 
         # Use atomic write with temporary file
-        temp_fd, temp_path = tempfile.mkstemp(dir=directory, prefix=f".{filename}.", suffix=".tmp")
-        temp_path = Path(temp_path)
+        temp_fd, temp_path_str = tempfile.mkstemp(
+            dir=directory, prefix=f".{filename}.", suffix=".tmp"
+        )
+        temp_path = Path(temp_path_str)
 
         try:
             # Write to temporary file
@@ -274,16 +230,16 @@ class FileSystemManager:
         except ValueError:
             return str(file_path)
 
-    async def create_index(self, pages: list) -> str:
+    async def create_index(self, pages: List[Dict[str, Any]]) -> str:
         """Create an index file with all scraped pages"""
-        index_content = """# Atlassian Documentation
+        index_content = """# Documentation Index
 
 ## Table of Contents
 
 """
 
         # Group pages by directory - only include docs/ content
-        page_tree = {}
+        page_tree: Dict[str, Any] = {}
 
         for page in pages:
             if page.get("status") != "completed":
@@ -333,7 +289,9 @@ class FileSystemManager:
             current[filename] = {"title": title, "url": url, "path": "/" + relative_str}
 
         # Generate index content with proper heading hierarchy
-        def generate_tree_markdown(tree, level=2):  # Start with ## (H2)
+        def generate_tree_markdown(
+            tree: Dict[str, Any], level: int = 2
+        ) -> str:  # Start with ## (H2)
             markdown = ""
 
             # Sort items: directories first, then files
@@ -375,51 +333,6 @@ class FileSystemManager:
             await f.write(index_content)
 
         return str(index_path)
-
-    def _get_path_from_breadcrumbs(
-        self, breadcrumb_data: dict, url: str
-    ) -> tuple[Path | None, str | None]:
-        """
-        Determine file path from breadcrumb data
-        Returns: (directory_path, filename)
-        """
-        breadcrumbs = breadcrumb_data.get("breadcrumbs", [])
-        breadcrumb_data.get("current", {})
-
-        if not breadcrumbs or len(breadcrumbs) < 2:
-            return None, None
-
-        # Build path from breadcrumbs, skipping the first two (Atlassian Support, Jira Service Management)
-        path_parts = []
-
-        for crumb in breadcrumbs[2:]:  # Skip first two levels
-            name = crumb.get("name", "")
-            if name and name not in ["Resources", "Docs"]:  # Skip these generic names
-                # Clean the name for filesystem
-                clean_name = re.sub(r'[<>:"|?*]', "_", name)
-                clean_name = clean_name.rstrip(". ")
-                path_parts.append(clean_name)
-
-        # Determine base directory
-        parsed = urlparse(url)
-        if "/docs/" in parsed.path:
-            base_dir = self.output_dir / "docs"
-        elif "/resources/" in parsed.path:
-            base_dir = self.output_dir / "resources"
-        else:
-            base_dir = self.output_dir
-
-        # Build full directory path - use breadcrumbs for folders only
-        if path_parts:
-            # Use ALL breadcrumb parts for directory structure
-            directory = base_dir / Path(*path_parts)
-            # Don't set filename here - let the current_page_title be used
-            filename = None
-        else:
-            directory = base_dir
-            filename = None
-
-        return directory, filename
 
     def _url_slug_to_proper_name(self, slug: str) -> str:
         """Convert URL slug to proper name with capitalized words
@@ -484,7 +397,7 @@ class FileSystemManager:
 
         return cleaned
 
-    def _count_pages_in_tree(self, tree: dict) -> int:
+    def _count_pages_in_tree(self, tree: Dict[str, Any]) -> int:
         """Count total pages in the tree structure"""
         count = 0
         for value in tree.values():

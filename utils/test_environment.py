@@ -216,7 +216,7 @@ def test_project_imports():
 
 def main():
     """Run all tests"""
-    print("Environment Test for Atlassian Documentation Scraper")
+    print("Environment Test for Atlas Markdown")
     print("=" * 60)
 
     all_ok = True

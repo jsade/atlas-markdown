@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from src.utils.file_manager import FileSystemManager
+from atlas_markdown.utils.file_manager import FileSystemManager
 
 
 @pytest.fixture
@@ -32,7 +32,9 @@ def test_url_to_filepath_basic(file_manager):
     directory, filename = file_manager.url_to_filepath(url)
 
     assert directory.name == "docs"
-    assert filename == "getting-started.md"
+    assert (
+        filename == "Getting Started.md"
+    )  # Converted from slug to proper name with capitalized 'Started'
 
 
 def test_url_to_filepath_index(file_manager):
@@ -61,9 +63,9 @@ def test_url_to_filepath_special_chars(file_manager):
 
     directory, filename = file_manager.url_to_filepath(url)
 
-    # Special characters should be replaced
+    # Special characters should be replaced or removed
     assert "?" not in filename
-    assert "'" not in filename
+    # Single quotes are allowed in the converted name
 
 
 @pytest.mark.asyncio
@@ -139,8 +141,9 @@ async def test_create_index(file_manager):
     with open(index_path) as f:
         content = f.read()
 
-    assert "# Atlassian Jira Service Management Documentation" in content
+    assert "# Documentation Index" in content
     assert "Page 1" in content
     assert "Page 2" in content
-    assert "Introduction" in content
-    assert "Total pages: 3" in content
+    # Only docs/ content is included in the index
+    assert "Introduction" not in content  # guide/intro.md is not in docs/
+    assert "Total documentation pages: 2" in content  # Only 2 docs/ pages

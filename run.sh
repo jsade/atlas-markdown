@@ -1,5 +1,5 @@
 #!/bin/bash
-# Simple run script for the Atlassian Docs to Markdown script
+# Simple run script for Atlas Markdown
 
 # Activate virtual environment if it exists
 if [ -d "venv" ]; then
@@ -7,4 +7,4 @@ if [ -d "venv" ]; then
 fi
 
 # Run the scraper with default settings
-python scraper.py "$@"
+python -m atlas_markdown.cli "$@"

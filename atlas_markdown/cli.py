@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Atlassian Documentation Docs to Markdown script
+Atlas Markdown script
 Main entry point for the command-line tool
 """
 
@@ -9,6 +9,7 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 import click
 from dotenv import load_dotenv
@@ -17,20 +18,20 @@ from rich.logging import RichHandler
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 from rich.table import Table
 
-from src.parsers.content_parser import ContentParser
-from src.parsers.initial_state_parser import InitialStateParser
-from src.parsers.link_resolver import LinkResolver
-from src.parsers.sitemap_parser import SitemapParser
-from src.scrapers.crawler import DocumentationCrawler
-from src.utils.file_manager import FileSystemManager
-from src.utils.health_monitor import CircuitBreaker, HealthMonitor
-from src.utils.image_downloader import ImageDownloader
-from src.utils.markdown_linter import MarkdownLinter
-from src.utils.rate_limiter import RateLimiter, RetryConfig, ThrottledScraper
-from src.utils.redirect_handler import RedirectHandler
+from atlas_markdown.parsers.content_parser import ContentParser
+from atlas_markdown.parsers.initial_state_parser import InitialStateParser
+from atlas_markdown.parsers.link_resolver import LinkResolver
+from atlas_markdown.parsers.sitemap_parser import SitemapParser
+from atlas_markdown.scrapers.crawler import DocumentationCrawler
+from atlas_markdown.utils.file_manager import FileSystemManager
+from atlas_markdown.utils.health_monitor import CircuitBreaker, HealthMonitor
+from atlas_markdown.utils.image_downloader import ImageDownloader
+from atlas_markdown.utils.markdown_linter import MarkdownLinter
+from atlas_markdown.utils.rate_limiter import RateLimiter, RetryConfig, ThrottledScraper
+from atlas_markdown.utils.redirect_handler import RedirectHandler
 
 # Import our modules
-from src.utils.state_manager import PageStatus, StateManager
+from atlas_markdown.utils.state_manager import PageStatus, StateManager
 
 # Load environment variables
 load_dotenv()
@@ -38,7 +39,7 @@ load_dotenv()
 console = Console()
 
 
-def validate_environment():
+def validate_environment() -> Dict[str, Any]:
     """Validate required environment variables with robust error handling"""
     required_vars = {
         "BASE_URL": "https://support.atlassian.com/jira-service-management-cloud",
@@ -60,36 +61,43 @@ def validate_environment():
         "DRY_RUN_DEFAULT": "false",
     }
 
-    env_config = {}
+    env_config: Dict[str, Any] = {}
     missing_vars = []
     invalid_vars = []
 
     for var, default in required_vars.items():
-        value = os.getenv(var, default).strip()
+        str_value = os.getenv(var, default).strip()
+        value: Any = str_value
 
-        if not value:
+        if not str_value:
             missing_vars.append(var)
             continue
 
         # Validate specific variable types
         if var == "WORKERS":
             try:
-                value = int(value)
-                if value < 1 or value > 50:
-                    invalid_vars.append(f"{var} must be between 1 and 50 (got {value})")
+                int_value = int(str_value)
+                if int_value < 1 or int_value > 50:
+                    invalid_vars.append(f"{var} must be between 1 and 50 (got {int_value})")
                     value = int(default)
+                else:
+                    value = int_value
             except ValueError:
-                invalid_vars.append(f"{var} must be an integer (got '{value}')")
+                invalid_vars.append(f"{var} must be an integer (got '{str_value}')")
                 value = int(default)
 
         elif var == "REQUEST_DELAY":
             try:
-                value = float(value)
-                if value < 0.1 or value > 60:
-                    invalid_vars.append(f"{var} must be between 0.1 and 60 seconds (got {value})")
+                float_value = float(str_value)
+                if float_value < 0.1 or float_value > 60:
+                    invalid_vars.append(
+                        f"{var} must be between 0.1 and 60 seconds (got {float_value})"
+                    )
                     value = float(default)
+                else:
+                    value = float_value
             except ValueError:
-                invalid_vars.append(f"{var} must be a number (got '{value}')")
+                invalid_vars.append(f"{var} must be a number (got '{str_value}')")
                 value = float(default)
 
         elif var == "BASE_URL":
@@ -97,7 +105,7 @@ def validate_environment():
             required_prefix = "https://support.atlassian.com/"
 
             # Remove trailing slash for consistency
-            value = value.rstrip("/")
+            value = str_value.rstrip("/")
 
             # Check if it starts with the required prefix
             if not value.startswith(required_prefix):
@@ -144,11 +152,11 @@ def validate_environment():
 
         elif var == "LOG_LEVEL":
             valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-            if value.upper() not in valid_levels:
-                invalid_vars.append(f"{var} must be one of {valid_levels} (got '{value}')")
+            if str_value.upper() not in valid_levels:
+                invalid_vars.append(f"{var} must be one of {valid_levels} (got '{str_value}')")
                 value = default
             else:
-                value = value.upper()
+                value = str_value.upper()
 
         elif var in [
             "MAX_CRAWL_DEPTH",
@@ -159,51 +167,57 @@ def validate_environment():
             "MAX_CONSECUTIVE_FAILURES",
         ]:
             try:
-                value = int(value)
-                if value < 0:
-                    invalid_vars.append(f"{var} must be non-negative (got {value})")
+                int_value = int(str_value)
+                if int_value < 0:
+                    invalid_vars.append(f"{var} must be non-negative (got {int_value})")
                     value = int(default)
+                else:
+                    value = int_value
 
-                # Specific range validations
-                if var == "MAX_CRAWL_DEPTH" and value > 10:
-                    invalid_vars.append(f"{var} should not exceed 10 for safety (got {value})")
-                    value = int(default)
-                elif var == "MAX_RETRIES" and value > 10:
-                    invalid_vars.append(f"{var} should not exceed 10 (got {value})")
-                    value = int(default)
-                elif var == "MAX_CONSECUTIVE_FAILURES" and value < 5:
-                    invalid_vars.append(f"{var} should be at least 5 (got {value})")
-                    value = int(default)
+                    # Specific range validations
+                    if var == "MAX_CRAWL_DEPTH" and int_value > 10:
+                        invalid_vars.append(
+                            f"{var} should not exceed 10 for safety (got {int_value})"
+                        )
+                        value = int(default)
+                    elif var == "MAX_RETRIES" and int_value > 10:
+                        invalid_vars.append(f"{var} should not exceed 10 (got {int_value})")
+                        value = int(default)
+                    elif var == "MAX_CONSECUTIVE_FAILURES" and int_value < 5:
+                        invalid_vars.append(f"{var} should be at least 5 (got {int_value})")
+                        value = int(default)
 
             except ValueError:
-                invalid_vars.append(f"{var} must be an integer (got '{value}')")
+                invalid_vars.append(f"{var} must be an integer (got '{str_value}')")
                 value = int(default)
 
         elif var == "DOMAIN_RESTRICTION":
             valid_modes = ["product", "any-atlassian", "off"]
             # Handle legacy values
-            if value == "strict":
+            if str_value == "strict":
                 value = "product"
-            elif value == "same-product":
+            elif str_value == "same-product":
                 value = "any-atlassian"
+            else:
+                value = str_value
 
             if value not in valid_modes:
                 invalid_vars.append(f"{var} must be one of {valid_modes} (got '{value}')")
                 value = default
 
         elif var == "DRY_RUN_DEFAULT":
-            if value.lower() not in ["true", "false"]:
-                invalid_vars.append(f"{var} must be 'true' or 'false' (got '{value}')")
+            if str_value.lower() not in ["true", "false"]:
+                invalid_vars.append(f"{var} must be 'true' or 'false' (got '{str_value}')")
                 value = default
             else:
-                value = value.lower() == "true"
+                value = str_value.lower() == "true"
 
         elif var == "LOG_ENABLED":
-            if value.lower() not in ["true", "false"]:
-                invalid_vars.append(f"{var} must be 'true' or 'false' (got '{value}')")
+            if str_value.lower() not in ["true", "false"]:
+                invalid_vars.append(f"{var} must be 'true' or 'false' (got '{str_value}')")
                 value = default
             else:
-                value = value.lower() == "true"
+                value = str_value.lower() == "true"
 
         env_config[var] = value
 
@@ -227,11 +241,11 @@ def validate_environment():
     return env_config
 
 
-def setup_logging(verbose: bool, env_config: dict):
+def setup_logging(verbose: bool, env_config: Dict[str, Any]) -> None:
     """Configure logging with Rich handler and optional file logging"""
     level = logging.DEBUG if verbose else logging.INFO
 
-    handlers = [RichHandler(console=console, rich_tracebacks=True)]
+    handlers: List[logging.Handler] = [RichHandler(console=console, rich_tracebacks=True)]
 
     # Add file handler if logging is enabled
     if env_config.get("LOG_ENABLED", False):
@@ -271,7 +285,7 @@ def setup_logging(verbose: bool, env_config: dict):
 class DocumentationScraper(ThrottledScraper):
     """Main scraper orchestrator"""
 
-    def __init__(self, config: dict, env_config: dict):
+    def __init__(self, config: Dict[str, Any], env_config: Dict[str, Any]) -> None:
         # Initialize configuration
         self.config = config
         self.env_config = env_config
@@ -309,14 +323,14 @@ class DocumentationScraper(ThrottledScraper):
         self.domain_restriction = env_config["DOMAIN_RESTRICTION"]
 
         self.retry_delay_minutes = 5
-        self.site_hierarchy = None  # Will be populated from initial state
+        self.site_hierarchy: Optional[Dict[str, Any]] = None  # Will be populated from initial state
         self.create_redirect_stubs = config.get("create_redirect_stubs", False)
 
         # Track runtime and pages scraped
-        self.start_time = None
+        self.start_time: Optional[float] = None
         self.pages_scraped = 0
 
-    async def run(self):
+    async def run(self) -> None:
         """Main scraping workflow with health monitoring"""
         try:
             self.start_time = asyncio.get_event_loop().time()
@@ -420,14 +434,14 @@ class DocumentationScraper(ThrottledScraper):
             self.logger.error(f"Fatal error in scraper: {e}", exc_info=True)
             raise
 
-    async def _periodic_health_check(self):
+    async def _periodic_health_check(self) -> None:
         """Periodically check system health and runtime constraints"""
         while True:
             try:
                 await asyncio.sleep(60)  # Check every minute
 
                 # Check runtime limit
-                if self.max_runtime_minutes > 0:
+                if self.max_runtime_minutes > 0 and self.start_time is not None:
                     elapsed_minutes = (asyncio.get_event_loop().time() - self.start_time) / 60
                     if elapsed_minutes >= self.max_runtime_minutes:
                         self.logger.warning(
@@ -483,7 +497,7 @@ class DocumentationScraper(ThrottledScraper):
         else:  # Default to most restrictive
             return url.startswith(self.base_url)
 
-    async def discover_pages(self):
+    async def discover_pages(self) -> None:
         """Load all documentation pages from initial state or sitemap"""
         with Progress(
             SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console
@@ -496,11 +510,13 @@ class DocumentationScraper(ThrottledScraper):
 
                 # Fetch the entry point page to get initial state
                 async with DocumentationCrawler(self.base_url) as crawler:
+                    if crawler.page is None:
+                        raise RuntimeError("Failed to initialize browser page")
                     await crawler.page.goto(self.entry_point, wait_until="networkidle")
                     html = await crawler.page.content()
 
                 # Extract hierarchy from initial state
-                self.site_hierarchy = self.initial_state_parser.extract_full_hierarchy(html)
+                self.site_hierarchy = self.initial_state_parser.extract_full_hierarchy(html) or {}
 
                 if self.site_hierarchy and self.site_hierarchy["total_pages"] > 0:
                     console.print(
@@ -549,7 +565,7 @@ class DocumentationScraper(ThrottledScraper):
             progress.update(task, completed=len(pages))
             console.print(f"[green]Loaded {len(pages)} pages from sitemap[/green]")
 
-    async def scrape_pages(self):
+    async def scrape_pages(self) -> None:
         """Scrape all pending pages"""
         # Check if we've hit the page limit
         if self.max_pages > 0 and self.pages_scraped >= self.max_pages:
@@ -596,7 +612,7 @@ class DocumentationScraper(ThrottledScraper):
             # Process pages with worker pool
             semaphore = asyncio.Semaphore(self.config["workers"])
 
-            async def process_page(page_info):
+            async def process_page(page_info: Dict[str, Any]) -> None:
                 async with semaphore:
                     url = page_info["url"]
                     await self.scrape_single_page(url)
@@ -606,7 +622,7 @@ class DocumentationScraper(ThrottledScraper):
             tasks = [process_page(page) for page in pending]
             await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def scrape_single_page(self, url: str):
+    async def scrape_single_page(self, url: str) -> None:
         """Scrape a single page with circuit breaker"""
         # Check page limit
         if self.max_pages > 0 and self.pages_scraped >= self.max_pages:
@@ -636,8 +652,17 @@ class DocumentationScraper(ThrottledScraper):
             await self.rate_limiter.acquire()
 
             # Scrape the page with retry
-            async def scrape_with_browser_and_extract():
+            async def scrape_with_browser_and_extract() -> Tuple[
+                Optional[str],
+                Optional[str],
+                Optional[Dict[str, Any]],
+                Optional[str],
+                Optional[str],
+                Optional[str],
+            ]:
                 async with DocumentationCrawler(self.base_url) as crawler:
+                    if crawler.page is None:
+                        raise RuntimeError("Failed to initialize browser page")
                     # Navigate to page
                     await crawler.page.goto(url, wait_until="networkidle")
 
@@ -656,10 +681,13 @@ class DocumentationScraper(ThrottledScraper):
                             canonical_file = self.redirect_handler.get_canonical_file(final_url)
                             if not canonical_file:
                                 # Look it up from the state manager
-                                cursor = await self.state_manager._db.execute(
-                                    "SELECT file_path FROM pages WHERE url = ?", (final_url,)
-                                )
-                                row = await cursor.fetchone()
+                                if self.state_manager._db:
+                                    cursor = await self.state_manager._db.execute(
+                                        "SELECT file_path FROM pages WHERE url = ?", (final_url,)
+                                    )
+                                    row = await cursor.fetchone()
+                                else:
+                                    row = None
                                 if row and row["file_path"]:
                                     canonical_file = row["file_path"]
                                     self.redirect_handler.add_final_url(final_url, canonical_file)
@@ -684,6 +712,14 @@ class DocumentationScraper(ThrottledScraper):
 
             # Use retry logic for browser operations
             result = await self.throttled_request(scrape_with_browser_and_extract)
+            if result is None:
+                raise ValueError("Failed to scrape page")
+            content_html: Optional[str]
+            title: Optional[str]
+            sibling_info: Optional[Dict[str, Any]]
+            html: Optional[str]
+            final_url: Optional[str]
+            canonical_file: Optional[str]
             content_html, title, sibling_info, html, final_url, canonical_file = result
 
             # Check if this was a redirect to already scraped content
@@ -694,7 +730,7 @@ class DocumentationScraper(ThrottledScraper):
                 self.link_resolver.add_page_mapping(url, title or "Redirected page", canonical_file)
 
                 # Optionally create a redirect stub file
-                if self.create_redirect_stubs:
+                if self.create_redirect_stubs and final_url:
                     redirect_content = self.redirect_handler.create_redirect_markdown(
                         url, final_url, canonical_file
                     )
@@ -730,7 +766,7 @@ class DocumentationScraper(ThrottledScraper):
             file_path = await self.file_manager.save_content(save_url, markdown, sibling_info)
 
             # Update page title if we found one
-            if title:
+            if title and self.state_manager._db:
                 await self.state_manager._db.execute(
                     "UPDATE pages SET title = ? WHERE url = ?", (title, save_url)
                 )
@@ -742,7 +778,7 @@ class DocumentationScraper(ThrottledScraper):
             )
 
             # Add URL to filename mapping for link resolution
-            self.link_resolver.add_page_mapping(save_url, title, file_path)
+            self.link_resolver.add_page_mapping(save_url, title or "", file_path)
 
             # Track the final URL in redirect handler
             self.redirect_handler.add_final_url(save_url, file_path)
@@ -750,7 +786,7 @@ class DocumentationScraper(ThrottledScraper):
             # If this was accessed via redirect, also update the original URL
             if final_url and final_url != url:
                 # Map the redirect URL to the same file
-                self.link_resolver.add_page_mapping(url, title, file_path)
+                self.link_resolver.add_page_mapping(url, title or "", file_path)
 
                 # Optionally create a redirect stub for the original URL
                 if self.create_redirect_stubs:
@@ -773,7 +809,10 @@ class DocumentationScraper(ThrottledScraper):
                 await self.state_manager.add_image(img_url, url)
 
             # Extract navigation links for discovery
-            nav_links = self.parser.get_navigation_links(html)
+            if html:
+                nav_links = self.parser.get_navigation_links(html)
+            else:
+                nav_links = []
             next_depth = current_depth + 1
 
             # Only add links if we haven't reached max depth
@@ -822,7 +861,7 @@ class DocumentationScraper(ThrottledScraper):
                 )
                 raise RuntimeError("Too many consecutive page failures") from e
 
-    async def download_images(self):
+    async def download_images(self) -> None:
         """Download all images"""
         # Get pending images
         pending_images = await self.state_manager.get_pending_images()
@@ -861,9 +900,11 @@ class DocumentationScraper(ThrottledScraper):
                 # Update markdown files with local image paths
                 await self.update_image_references(downloader.get_all_mappings())
 
-    async def update_image_references(self, image_map: dict):
+    async def update_image_references(self, image_map: Dict[str, str]) -> None:
         """Update image references in markdown files"""
         # Get all completed pages
+        if not self.state_manager._db:
+            return
         cursor = await self.state_manager._db.execute(
             "SELECT url, file_path FROM pages WHERE status = ?", (PageStatus.COMPLETED.value,)
         )
@@ -891,7 +932,7 @@ class DocumentationScraper(ThrottledScraper):
             except Exception as e:
                 self.logger.error(f"Failed to update images in {file_path}: {e}")
 
-    async def retry_failed_pages(self):
+    async def retry_failed_pages(self) -> None:
         """Final retry attempt for all failed pages"""
         # Get failed pages that haven't exceeded max retries
         failed_pages = await self.state_manager.get_failed_pages_for_retry(self.max_retry_attempts)
@@ -922,7 +963,7 @@ class DocumentationScraper(ThrottledScraper):
             retry_workers = max(1, self.config["workers"] // 2)
             semaphore = asyncio.Semaphore(retry_workers)
 
-            async def retry_page(page_info):
+            async def retry_page(page_info: Dict[str, Any]) -> None:
                 async with semaphore:
                     url = page_info["url"]
                     retry_count = page_info.get("retry_count", 0)
@@ -954,11 +995,13 @@ class DocumentationScraper(ThrottledScraper):
         else:
             console.print("\n[green]All retry attempts successful![/green]")
 
-    async def generate_index(self):
+    async def generate_index(self) -> None:
         """Generate index file"""
         console.print("[blue]Generating index...[/blue]")
 
         # Get all pages
+        if not self.state_manager._db:
+            return
         cursor = await self.state_manager._db.execute(
             "SELECT url, title, file_path, status FROM pages ORDER BY url"
         )
@@ -968,7 +1011,7 @@ class DocumentationScraper(ThrottledScraper):
         index_path = await self.file_manager.create_index([dict(p) for p in pages])
         console.print(f"[green]Generated index: {index_path}[/green]")
 
-    async def fix_wiki_links(self):
+    async def fix_wiki_links(self) -> None:
         """Fix all wiki links to use proper filenames"""
         console.print("\n[blue]Fixing wiki links...[/blue]")
 
@@ -976,10 +1019,13 @@ class DocumentationScraper(ThrottledScraper):
         await self.link_resolver.load_from_state_manager(self.state_manager)
 
         # Get all completed pages
+        if not self.state_manager._db:
+            return
         cursor = await self.state_manager._db.execute(
             "SELECT url, file_path FROM pages WHERE status = ?", (PageStatus.COMPLETED.value,)
         )
         pages = await cursor.fetchall()
+        pages_list = list(pages)
 
         fixed_count = 0
         with Progress(
@@ -989,9 +1035,9 @@ class DocumentationScraper(ThrottledScraper):
             TaskProgressColumn(),
             console=console,
         ) as progress:
-            task = progress.add_task("Fixing wiki links", total=len(pages))
+            task = progress.add_task("Fixing wiki links", total=len(pages_list))
 
-            for page in pages:
+            for page in pages_list:
                 if not page["file_path"]:
                     progress.update(task, advance=1)
                     continue
@@ -1023,7 +1069,7 @@ class DocumentationScraper(ThrottledScraper):
         else:
             console.print("[yellow]No wiki links needed fixing[/yellow]")
 
-    async def lint_markdown_files(self):
+    async def lint_markdown_files(self) -> None:
         """Lint and fix all markdown files"""
         console.print("\n[blue]Linting markdown files...[/blue]")
 
@@ -1039,7 +1085,12 @@ class DocumentationScraper(ThrottledScraper):
             task = progress.add_task("Linting markdown files...", total=None)
 
             # Lint all files and fix in place
-            issues = await asyncio.to_thread(linter.lint_directory, output_path, fix_in_place=True)
+            # asyncio.to_thread is Python 3.9+, use run_in_executor for Python 3.8
+            import concurrent.futures
+
+            loop = asyncio.get_event_loop()
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                issues = await loop.run_in_executor(pool, linter.lint_directory, output_path, True)
 
             progress.update(task, completed=1)
 
@@ -1056,7 +1107,7 @@ class DocumentationScraper(ThrottledScraper):
             console.print(f"[dim]Linting report saved to: {report_path}[/dim]")
 
             # Show summary of issue types
-            issue_types = {}
+            issue_types: Dict[str, int] = {}
             for file_issues in issues.values():
                 for issue in file_issues:
                     issue_types[issue.issue_type] = issue_types.get(issue.issue_type, 0) + 1
@@ -1070,7 +1121,7 @@ class DocumentationScraper(ThrottledScraper):
         else:
             console.print("[green]No linting issues found![/green]")
 
-    async def show_statistics(self):
+    async def show_statistics(self) -> None:
         """Display final statistics"""
         stats = await self.state_manager.get_statistics()
 
@@ -1160,17 +1211,17 @@ class DocumentationScraper(ThrottledScraper):
     help="Create stub files for redirected URLs (default: skip duplicates)",
 )
 def scrape(
-    output,
-    workers,
-    delay,
-    resume,
-    dry_run,
-    verbose,
-    include_resources,
-    no_lint,
-    create_redirect_stubs,
-):
-    """Scrape Atlassian Jira Service Management documentation"""
+    output: Optional[str],
+    workers: Optional[int],
+    delay: Optional[float],
+    resume: bool,
+    dry_run: bool,
+    verbose: bool,
+    include_resources: bool,
+    no_lint: bool,
+    create_redirect_stubs: bool,
+) -> None:
+    """Download and convert Atlassian documentation to Markdown"""
 
     # Validate environment first
     env_config = validate_environment()
@@ -1179,7 +1230,7 @@ def scrape(
     setup_logging(verbose or env_config["LOG_LEVEL"] == "DEBUG", env_config)
 
     # Show banner
-    console.print("\n[bold blue]Atlassian Documentation Scraper[/bold blue]")
+    console.print("\n[bold blue]Atlas Markdown[/bold blue]")
     console.print(f"[dim]Base URL: {env_config['BASE_URL']}[/dim]")
     console.print(f"[dim]Output directory: {output or env_config['OUTPUT_DIR']}[/dim]")
     console.print(
@@ -1228,3 +1279,6 @@ def scrape(
 
 if __name__ == "__main__":
     scrape()
+
+# Entry point for setuptools
+main = scrape

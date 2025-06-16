@@ -5,8 +5,8 @@ import asyncio
 import sys
 from pathlib import Path
 
-from src.utils.file_manager import FileSystemManager
-from src.utils.state_manager import StateManager
+from atlas_markdown.utils.file_manager import FileSystemManager
+from atlas_markdown.utils.state_manager import StateManager
 
 
 async def regenerate_index(output_dir: str):

@@ -8,7 +8,7 @@ import random
 import time
 from collections.abc import Callable
 from functools import wraps
-from typing import TypeVar
+from typing import Any, Awaitable, Optional, Tuple, Type, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +28,11 @@ class RateLimiter:
         """
         self.rate = rate
         self.burst = burst
-        self.tokens = burst
+        self.tokens = float(burst)
         self.last_update = time.monotonic()
         self._lock = asyncio.Lock()
 
-    async def acquire(self, tokens: int = 1):
+    async def acquire(self, tokens: int = 1) -> None:
         """Acquire tokens, waiting if necessary"""
         async with self._lock:
             while True:
@@ -82,11 +82,11 @@ def calculate_backoff(attempt: int, config: RetryConfig) -> float:
 
 
 async def retry_async(
-    func: Callable[..., T],
-    *args,
-    config: RetryConfig | None = None,
-    retry_on: tuple = (Exception,),
-    **kwargs,
+    func: Callable[..., Awaitable[T]],
+    *args: Any,
+    config: Optional[RetryConfig] = None,
+    retry_on: Tuple[Type[Exception], ...] = (Exception,),
+    **kwargs: Any,
 ) -> T:
     """
     Retry an async function with exponential backoff
@@ -106,7 +106,7 @@ async def retry_async(
     if config is None:
         config = RetryConfig()
 
-    last_exception = None
+    last_exception: Optional[Exception] = None
 
     for attempt in range(1, config.max_attempts + 1):
         try:
@@ -128,15 +128,20 @@ async def retry_async(
             await asyncio.sleep(delay)
 
     # Should never reach here
-    raise last_exception
+    if last_exception:
+        raise last_exception
+    else:
+        raise RuntimeError("Retry failed without exception")
 
 
-def with_retry(config: RetryConfig | None = None, retry_on: tuple = (Exception,)):
+def with_retry(
+    config: Optional[RetryConfig] = None, retry_on: Tuple[Type[Exception], ...] = (Exception,)
+) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]:
     """Decorator for adding retry logic to async functions"""
 
-    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+    def decorator(func: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T]]:
         @wraps(func)
-        async def wrapper(*args, **kwargs) -> T:
+        async def wrapper(*args: Any, **kwargs: Any) -> T:
             return await retry_async(func, *args, config=config, retry_on=retry_on, **kwargs)
 
         return wrapper
@@ -147,11 +152,15 @@ def with_retry(config: RetryConfig | None = None, retry_on: tuple = (Exception,)
 class ThrottledScraper:
     """Base class for rate-limited scraping operations"""
 
-    def __init__(self, rate_limiter: RateLimiter, retry_config: RetryConfig | None = None):
+    def __init__(
+        self, rate_limiter: RateLimiter, retry_config: Optional[RetryConfig] = None
+    ) -> None:
         self.rate_limiter = rate_limiter
         self.retry_config = retry_config or RetryConfig()
 
-    async def throttled_request(self, func: Callable[..., T], *args, **kwargs) -> T:
+    async def throttled_request(
+        self, func: Callable[..., Awaitable[T]], *args: Any, **kwargs: Any
+    ) -> T:
         """Execute a function with rate limiting and retry"""
         # Acquire rate limit token
         await self.rate_limiter.acquire()

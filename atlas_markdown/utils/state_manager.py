@@ -6,7 +6,7 @@ Allows resuming interrupted scraping sessions
 import asyncio
 import logging
 from enum import Enum
-from typing import Any
+from typing import Any, Optional
 
 import aiosqlite
 
@@ -28,7 +28,7 @@ class StateManager:
 
     def __init__(self, db_path: str = "scraper_state.db"):
         self.db_path = db_path
-        self._db: aiosqlite.Connection | None = None
+        self._db: Optional[aiosqlite.Connection] = None
 
     async def __aenter__(self):
         await self.initialize()
@@ -394,7 +394,7 @@ class StateManager:
         rows = await cursor.fetchall()
         return [dict(row) for row in rows]
 
-    async def reset_in_progress(self):
+    async def reset_in_progress(self) -> None:
         """Reset any in-progress pages to pending (for recovery)"""
         await self._db.execute(
             """
@@ -406,7 +406,7 @@ class StateManager:
         )
         await self._db.commit()
 
-    async def clear_all(self):
+    async def clear_all(self) -> None:
         """Clear all data (for fresh start)"""
         await self._db.execute("DELETE FROM images")
         await self._db.execute("DELETE FROM pages")
