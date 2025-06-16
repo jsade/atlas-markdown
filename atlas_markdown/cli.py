@@ -690,7 +690,10 @@ class DocumentationScraper(ThrottledScraper):
                                     row = None
                                 if row and row["file_path"]:
                                     canonical_file = row["file_path"]
-                                    self.redirect_handler.add_final_url(final_url, canonical_file)
+                                    if canonical_file is not None:
+                                        self.redirect_handler.add_final_url(
+                                            final_url, canonical_file
+                                        )
 
                             # Skip scraping this page - it's a duplicate
                             return None, None, None, None, final_url, canonical_file
