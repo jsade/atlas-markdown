@@ -1,0 +1,13 @@
+{
+	"pythonVersion": "3.11",
+	"reportGeneralTypeIssues": "error",
+	"reportMissingImports": "error",
+	"reportMissingModuleSource": "none",
+	"reportMissingTypeStubs": "none",
+	"reportUnknownArgumentType": "none",
+	"reportUnknownLambdaType": "none",
+	"reportUnknownMemberType": "none",
+	"reportUnknownParameterType": "none",
+	"reportUnknownVariableType": "none",
+	"typeCheckingMode": "strict"
+}

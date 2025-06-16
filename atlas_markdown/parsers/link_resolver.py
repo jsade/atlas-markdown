@@ -5,6 +5,8 @@ Link resolver for mapping URLs to actual filenames
 import logging
 import re
 from pathlib import Path
+from re import Match
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -14,10 +16,10 @@ class LinkResolver:
 
     def __init__(self, base_url: str):
         self.base_url = base_url.rstrip("/")
-        self.url_to_filename_map = {}
-        self.title_to_filename_map = {}
+        self.url_to_filename_map: dict[str, str] = {}
+        self.title_to_filename_map: dict[str, str] = {}
 
-    def add_page_mapping(self, url: str, title: str, file_path: str):
+    def add_page_mapping(self, url: str, title: str, file_path: str) -> None:
         """Add a mapping from URL and title to actual filename"""
         # Extract just the filename from the full path
         if file_path:
@@ -136,7 +138,7 @@ class LinkResolver:
         # Pattern to match wiki links: [[target|text]]
         wiki_pattern = r"\[\[([^\|]+)\|([^\]]+)\]\]"
 
-        def fix_wiki_link(match):
+        def fix_wiki_link(match: Match[str]) -> str:
             target = match.group(1).strip()
             text = match.group(2).strip()
 
@@ -166,7 +168,7 @@ class LinkResolver:
         # Pattern to match markdown links: [text](url)
         link_pattern = r"\[([^\]]+)\]\(([^)]+)\)"
 
-        def convert_link(match):
+        def convert_link(match: Match[str]) -> str:
             text = match.group(1)
             url = match.group(2)
 
@@ -180,7 +182,7 @@ class LinkResolver:
         # Apply the conversion
         return re.sub(link_pattern, convert_link, markdown)
 
-    async def load_from_state_manager(self, state_manager):
+    async def load_from_state_manager(self, state_manager: Any) -> None:
         """Load all URL to filename mappings from the state manager"""
         try:
             cursor = await state_manager._db.execute(
@@ -195,7 +197,7 @@ class LinkResolver:
         except Exception as e:
             logger.error(f"Failed to load mappings from state manager: {e}")
 
-    def get_stats(self) -> dict:
+    def get_stats(self) -> dict[str, int]:
         """Get statistics about the resolver"""
         return {
             "url_mappings": len(self.url_to_filename_map),

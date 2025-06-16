@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Initialization script for Atlassian Docs to Markdown
+Initialization script for Atlas Markdown
 This script sets up the development environment and project structure
 """
 
@@ -45,7 +45,7 @@ def print_info(message):
 
 
 def check_python_version():
-    """Check if Python version is 3.8 or higher"""
+    """Check if Python version is 3.11 or higher"""
     print_info("Checking Python version...")
     print_success(f"Python {sys.version.split()[0]} detected")
 
@@ -146,9 +146,9 @@ def create_project_structure():
 
     directories = [
         "src",
-        "src/scrapers",
-        "src/parsers",
-        "src/utils",
+        "atlas_markdown/scrapers",
+        "atlas_markdown/parsers",
+        "atlas_markdown/utils",
         "tests",
         "output",
         "logs",
@@ -159,10 +159,10 @@ def create_project_structure():
 
     # Create __init__.py files
     init_files = [
-        "src/__init__.py",
-        "src/scrapers/__init__.py",
-        "src/parsers/__init__.py",
-        "src/utils/__init__.py",
+        "atlas_markdown/__init__.py",
+        "atlas_markdown/scrapers/__init__.py",
+        "atlas_markdown/parsers/__init__.py",
+        "atlas_markdown/utils/__init__.py",
         "tests/__init__.py",
     ]
 
@@ -227,7 +227,7 @@ build/
     else:
         pyproject_content = """[tool.black]
 line-length = 100
-target-version = ['py38']
+target-version = ['py311']
 
 [tool.ruff]
 line-length = 100
@@ -240,7 +240,7 @@ pythonpath = ["."]
 asyncio_mode = "auto"
 
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
@@ -261,10 +261,10 @@ omit = ["tests/*", "venv/*"]
         env_example = """# Atlassian Docs to Markdown Configuration
 #
 # For complete configuration options, run:
-#   python scraper.py --help
+#   atlas-markdown --help
 #
 # Or see the full example configuration at:
-#   https://github.com/jsade/atlassian-docs-to-markdown/
+#   https://github.com/jsade/atlas-markdown/
 #
 # Required variable:
 BASE_URL=https://support.atlassian.com/jira-service-management-cloud
@@ -326,15 +326,17 @@ def create_requirements_file():
 
 
 def verify_main_script():
-    """Verify the main scraper script exists"""
-    print_info("Verifying main scraper script...")
+    """Verify the main CLI module exists"""
+    print_info("Verifying main CLI module...")
 
-    if Path("scraper.py").exists():
-        print_success("Main scraper script found")
+    if Path("atlas_markdown/cli.py").exists():
+        print_success("Main CLI module found")
         # Make it executable
-        os.chmod("scraper.py", 0o755)
+        os.chmod("atlas_markdown/cli.py", 0o755)
     else:
-        print_error("scraper.py not found - please ensure you have the complete repository")
+        print_error(
+            "atlas_markdown/cli.py not found - please ensure you have the complete repository"
+        )
 
 
 def setup_pre_commit():
@@ -363,9 +365,9 @@ def print_next_steps():
     print(f"   {Colors.GREEN}cp .env.example .env{Colors.END}")
     print(f"   {Colors.GREEN}# Edit .env with your settings{Colors.END}\n")
 
-    print(f"{Colors.BOLD}3. Run the scraper:{Colors.END}")
-    print(f"   {Colors.GREEN}python scraper.py --help{Colors.END}")
-    print(f"   {Colors.GREEN}python scraper.py --output ./docs{Colors.END}\n")
+    print(f"{Colors.BOLD}3. Run Atlas Markdown:{Colors.END}")
+    print(f"   {Colors.GREEN}atlas-markdown --help{Colors.END}")
+    print(f"   {Colors.GREEN}atlas-markdown --output ./docs{Colors.END}\n")
 
     print(f"{Colors.BOLD}4. Run tests:{Colors.END}")
     print(f"   {Colors.GREEN}pytest tests/{Colors.END}\n")
@@ -375,7 +377,7 @@ def print_next_steps():
 
 def main():
     """Main initialization function"""
-    print_header("Atlassian Documentation Scraper Setup")
+    print_header("Atlas Markdown Setup")
 
     try:
         # System checks

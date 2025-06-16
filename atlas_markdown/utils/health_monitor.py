@@ -19,7 +19,7 @@ class HealthMonitor:
     def __init__(self, output_dir: str):
         self.output_dir = Path(output_dir)
         self.start_time = datetime.now()
-        self.warnings = []
+        self.warnings: list[str] = []
 
     async def check_system_health(self) -> dict[str, Any]:
         """Perform comprehensive health check"""
@@ -203,7 +203,7 @@ class HealthMonitor:
             logger.error(f"Output directory check failed: {e}")
             return {"healthy": False, "error": str(e), "message": f"Output directory error: {e}"}
 
-    def add_warning(self, warning: str):
+    def add_warning(self, warning: str) -> None:
         """Add a warning to the monitor"""
         self.warnings.append(f"[{datetime.now().isoformat()}] {warning}")
         if len(self.warnings) > 100:
@@ -220,12 +220,12 @@ class CircuitBreaker:
         self.last_failure_time: datetime | None = None
         self.state = "closed"  # closed, open, half-open
 
-    def record_success(self):
+    def record_success(self) -> None:
         """Record a successful operation"""
         self.failure_count = 0
         self.state = "closed"
 
-    def record_failure(self):
+    def record_failure(self) -> None:
         """Record a failed operation"""
         self.failure_count += 1
         self.last_failure_time = datetime.now()
@@ -259,7 +259,7 @@ class CircuitBreaker:
             "last_failure": self.last_failure_time.isoformat() if self.last_failure_time else None,
         }
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset the circuit breaker to closed state"""
         self.failure_count = 0
         self.state = "closed"

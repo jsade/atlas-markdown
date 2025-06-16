@@ -30,14 +30,14 @@ class StateManager:
         self.db_path = db_path
         self._db: aiosqlite.Connection | None = None
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "StateManager":
         await self.initialize()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         await self.close()
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize database connection and create tables"""
         max_retries = 3
 
@@ -57,7 +57,7 @@ class StateManager:
                 # Check database integrity
                 cursor = await self._db.execute("PRAGMA integrity_check")
                 result = await cursor.fetchone()
-                if result[0] != "ok":
+                if result and result[0] != "ok":
                     logger.warning(f"Database integrity check: {result[0]}")
                     # Try to recover
                     await self._db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
@@ -151,19 +151,23 @@ class StateManager:
                 else:
                     raise
 
-    async def close(self):
+    async def close(self) -> None:
         """Close database connection"""
         if self._db:
             await self._db.close()
 
     async def start_run(self) -> int:
         """Start a new scraper run and return run ID"""
+        if not self._db:
+            raise RuntimeError("Database not initialized")
         cursor = await self._db.execute("INSERT INTO scraper_runs DEFAULT VALUES")
         await self._db.commit()
-        return cursor.lastrowid
+        return cursor.lastrowid or 0
 
-    async def update_run_stats(self, run_id: int):
+    async def update_run_stats(self, run_id: int) -> None:
         """Update run statistics"""
+        if not self._db:
+            raise RuntimeError("Database not initialized")
         stats = await self.get_statistics()
         await self._db.execute(
             """
@@ -183,8 +187,10 @@ class StateManager:
         )
         await self._db.commit()
 
-    async def complete_run(self, run_id: int):
+    async def complete_run(self, run_id: int) -> None:
         """Mark a run as completed"""
+        if not self._db:
+            raise RuntimeError("Database not initialized")
         await self.update_run_stats(run_id)
         await self._db.execute(
             "UPDATE scraper_runs SET completed_at = CURRENT_TIMESTAMP WHERE id = ?", (run_id,)
@@ -197,12 +203,14 @@ class StateManager:
         title: str | None = None,
         crawl_depth: int = 0,
         parent_url: str | None = None,
-    ):
+    ) -> None:
         """Add a page to be scraped with retry on lock"""
         max_retries = 3
 
         for attempt in range(max_retries):
             try:
+                if not self._db:
+                    raise RuntimeError("Database not initialized")
                 await self._db.execute(
                     """
                     INSERT OR IGNORE INTO pages (url, title, status, crawl_depth, parent_url)
@@ -221,12 +229,16 @@ class StateManager:
 
     async def get_page_status(self, url: str) -> str | None:
         """Get the status of a page"""
+        if not self._db:
+            raise RuntimeError("Database not initialized")
         cursor = await self._db.execute("SELECT status FROM pages WHERE url = ?", (url,))
         row = await cursor.fetchone()
         return row["status"] if row else None
 
-    async def get_page_info(self, url: str) -> dict | None:
+    async def get_page_info(self, url: str) -> dict[str, Any] | None:
         """Get full information about a page"""
+        if not self._db:
+            raise RuntimeError("Database not initialized")
         cursor = await self._db.execute(
             "SELECT url, status, crawl_depth, parent_url FROM pages WHERE url = ?", (url,)
         )
@@ -240,7 +252,7 @@ class StateManager:
         file_path: str | None = None,
         content_hash: str | None = None,
         error_message: str | None = None,
-    ):
+    ) -> None:
         """Update the status of a page"""
         query = """
             UPDATE pages
@@ -268,6 +280,8 @@ class StateManager:
         query += " WHERE url = ?"
         params.append(url)
 
+        if not self._db:
+            raise RuntimeError("Database not initialized")
         await self._db.execute(query, params)
         await self._db.commit()
 
@@ -280,7 +294,7 @@ class StateManager:
             FROM pages
             WHERE status IN (?, ?)
         """
-        params = [PageStatus.PENDING.value, PageStatus.FAILED.value]
+        params: list[Any] = [PageStatus.PENDING.value, PageStatus.FAILED.value]
 
         if max_depth is not None:
             query += " AND crawl_depth <= ?"
@@ -292,12 +306,16 @@ class StateManager:
             query += " LIMIT ?"
             params.append(limit)
 
+        if not self._db:
+            raise RuntimeError("Database not initialized")
         cursor = await self._db.execute(query, params)
         rows = await cursor.fetchall()
         return [dict(row) for row in rows]
 
-    async def add_image(self, url: str, page_url: str):
+    async def add_image(self, url: str, page_url: str) -> None:
         """Add an image to be downloaded"""
+        if not self._db:
+            raise RuntimeError("Database not initialized")
         await self._db.execute(
             """
             INSERT OR IGNORE INTO images (url, page_url)
@@ -313,10 +331,10 @@ class StateManager:
         local_path: str | None = None,
         downloaded: bool = False,
         error_message: str | None = None,
-    ):
+    ) -> None:
         """Update image download status"""
         query = "UPDATE images SET downloaded = ?"
-        params = [downloaded]
+        params: list[Any] = [downloaded]
 
         if local_path:
             query += ", local_path = ?"
@@ -329,11 +347,15 @@ class StateManager:
         query += " WHERE url = ?"
         params.append(url)
 
+        if not self._db:
+            raise RuntimeError("Database not initialized")
         await self._db.execute(query, params)
         await self._db.commit()
 
     async def get_pending_images(self) -> list[dict[str, Any]]:
         """Get images that need to be downloaded"""
+        if not self._db:
+            raise RuntimeError("Database not initialized")
         cursor = await self._db.execute(
             """
             SELECT url, page_url
@@ -346,6 +368,8 @@ class StateManager:
 
     async def get_statistics(self) -> dict[str, Any]:
         """Get scraping statistics"""
+        if not self._db:
+            raise RuntimeError("Database not initialized")
         # Page statistics
         cursor = await self._db.execute(
             """
@@ -364,7 +388,10 @@ class StateManager:
                 PageStatus.IN_PROGRESS.value,
             ),
         )
-        page_stats = dict(await cursor.fetchone())
+        row = await cursor.fetchone()
+        if not row:
+            raise RuntimeError("Failed to fetch page statistics")
+        page_stats = dict(row)
 
         # Image statistics
         cursor = await self._db.execute(
@@ -376,12 +403,17 @@ class StateManager:
             FROM images
         """
         )
-        image_stats = dict(await cursor.fetchone())
+        row = await cursor.fetchone()
+        if not row:
+            raise RuntimeError("Failed to fetch image statistics")
+        image_stats = dict(row)
 
         return {"pages": page_stats, "images": image_stats}
 
     async def get_failed_pages(self) -> list[dict[str, Any]]:
         """Get pages that failed to scrape"""
+        if not self._db:
+            raise RuntimeError("Database not initialized")
         cursor = await self._db.execute(
             """
             SELECT url, error_message, retry_count, updated_at
@@ -394,8 +426,10 @@ class StateManager:
         rows = await cursor.fetchall()
         return [dict(row) for row in rows]
 
-    async def reset_in_progress(self):
+    async def reset_in_progress(self) -> None:
         """Reset any in-progress pages to pending (for recovery)"""
+        if not self._db:
+            raise RuntimeError("Database not initialized")
         await self._db.execute(
             """
             UPDATE pages
@@ -406,14 +440,18 @@ class StateManager:
         )
         await self._db.commit()
 
-    async def clear_all(self):
+    async def clear_all(self) -> None:
         """Clear all data (for fresh start)"""
+        if not self._db:
+            raise RuntimeError("Database not initialized")
         await self._db.execute("DELETE FROM images")
         await self._db.execute("DELETE FROM pages")
         await self._db.execute("DELETE FROM scraper_runs")
 
     async def get_failed_pages_for_retry(self, max_retries: int = 3) -> list[dict[str, Any]]:
         """Get failed pages that haven't exceeded max retry attempts"""
+        if not self._db:
+            raise RuntimeError("Database not initialized")
         cursor = await self._db.execute(
             """
             SELECT url, title, retry_count, error_message
@@ -431,6 +469,8 @@ class StateManager:
         self, max_retries: int = 3, delay_minutes: int = 5
     ) -> list[dict[str, Any]]:
         """Get failed pages eligible for retry based on time delay"""
+        if not self._db:
+            raise RuntimeError("Database not initialized")
         cursor = await self._db.execute(
             """
             SELECT url, title, retry_count, error_message
@@ -446,8 +486,10 @@ class StateManager:
         rows = await cursor.fetchall()
         return [dict(row) for row in rows]
 
-    async def reset_for_retry(self, url: str):
+    async def reset_for_retry(self, url: str) -> None:
         """Reset a failed page for retry"""
+        if not self._db:
+            raise RuntimeError("Database not initialized")
         await self._db.execute(
             """
             UPDATE pages
@@ -460,6 +502,8 @@ class StateManager:
 
     async def get_permanently_failed_pages(self, max_retries: int = 3) -> list[dict[str, Any]]:
         """Get pages that have exceeded max retry attempts"""
+        if not self._db:
+            raise RuntimeError("Database not initialized")
         cursor = await self._db.execute(
             """
             SELECT url, title, retry_count, error_message

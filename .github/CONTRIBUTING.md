@@ -1,12 +1,12 @@
-# Contributing to Atlassian Docs to Markdown Converter
+# Contributing to Atlas Markdown
 
-First off, thank you for considering contributing to Atlassian Documentation to Markdown Converter! It's people like you that make this tool better for everyone.
+First off, thank you for considering contributing to Atlas Markdown! It's people like you that make this tool better for everyone.
 
 This document provides guidelines for contributing to the project. These are mostly guidelines, not rules. Use your best judgment, and feel free to propose changes to this document in a pull request.
 
 ## Table of Contents
 
-- [Contributing to Atlassian Docs to Markdown](#contributing-to-atlassian-docs-to-markdown)
+- [Contributing to Atlas Markdown](#contributing-to-atlas-markdown)
   - [Table of Contents](#table-of-contents)
   - [Code of Conduct](#code-of-conduct)
   - [I Just Have a Question](#i-just-have-a-question)
@@ -42,14 +42,14 @@ This project and everyone participating in it is governed by our [Code of Conduc
 > Please don't file an issue to ask a question. You'll get faster results by using the resources below.
 
 - Read the [README.md](README.md) thoroughly - it contains detailed usage instructions and troubleshooting tips
-- Check existing [Issues](https://github.com/jsade/atlassian-docs-to-markdown/issues) - someone might have already asked your question
-- Start a [Discussion](https://github.com/jsade/atlassian-docs-to-markdown/discussions) for general questions and ideas
+- Check existing [Issues](https://github.com/jsade/atlas-markdown/issues) - someone might have already asked your question
+- Start a [Discussion](https://github.com/jsade/atlas-markdown/discussions) for general questions and ideas
 
 ## What Should I Know Before Getting Started
 
 ### Project Overview
 
-Atlassian Documentation to Markdown Converter is a command-line tool that downloads and converts Atlassian product documentation to Markdown format. Key aspects:
+Atlas Markdown is a command-line tool that downloads and converts Atlassian product documentation to Markdown format. Key aspects:
 
 - Built with Python 3.8+ for cross-platform compatibility
 - Uses Playwright for handling JavaScript-rendered content
@@ -72,7 +72,7 @@ Before creating bug reports, please check existing issues to avoid duplicates. W
 
 #### How to Submit a Good Bug Report
 
-Bugs are tracked as [GitHub issues](https://github.com/jsade/atlassian-docs-to-markdown/issues). Create an issue and provide:
+Bugs are tracked as [GitHub issues](https://github.com/jsade/atlas-markdown/issues). Create an issue and provide:
 
 - **Use a clear and descriptive title**
 - **Describe the exact steps to reproduce the problem**
@@ -87,7 +87,7 @@ Bugs are tracked as [GitHub issues](https://github.com/jsade/atlassian-docs-to-m
 
 ### Suggesting Enhancements
 
-Enhancement suggestions are also tracked as [GitHub issues](https://github.com/jsade/atlassian-docs-to-markdown/issues). When creating an enhancement suggestion:
+Enhancement suggestions are also tracked as [GitHub issues](https://github.com/jsade/atlas-markdown/issues). When creating an enhancement suggestion:
 
 - **Use a clear and descriptive title**
 - **Provide a detailed description** of the suggested enhancement
@@ -108,8 +108,8 @@ Unsure where to begin? Look for issues labeled:
 1. Fork the repository
 2. Clone your fork:
 ```bash
-git clone https://github.com/your-username/atlassian-docs-to-markdown.git
-cd atlassian-docs-to-markdown
+git clone https://github.com/your-username/atlas-markdown.git
+cd atlas-markdown
 ```
 
 3. Run the initialization script:
@@ -143,8 +143,9 @@ git checkout -b feature/your-feature-name
 1. Ensure all tests pass locally:
 ```bash
 pytest tests/
-ruff check .
-black --check .
+ruff check . --fix
+black .
+mypy atlas_markdown/
 ```
 
 2. Run a semantic release dry-run to see version impact:
@@ -177,10 +178,11 @@ We use several tools to maintain code quality:
 - **Ruff** - Fast Python linter
 - **MyPy** - Static type checking (optional but encouraged)
 
-Run all formatters:
+Run all formatters and type checking:
 ```bash
 black .
 ruff check . --fix
+mypy atlas_markdown/
 ```
 
 #### Python Style Guidelines
@@ -229,7 +231,7 @@ pytest tests/
 pytest tests/test_parser.py -v
 
 # Run with coverage
-pytest --cov=src tests/
+pytest --cov=atlas_markdown tests/
 
 # Run only fast tests
 pytest -m "not slow"

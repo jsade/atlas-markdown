@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import logging
 from pathlib import Path
+from typing import Any
 from urllib.parse import unquote, urlparse
 
 import aiofiles
@@ -24,14 +25,14 @@ class ImageDownloader:
         self.client: httpx.AsyncClient | None = None
         self.image_map: dict[str, str] = {}  # Maps original URL to local path
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "ImageDownloader":
         await self.initialize()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         await self.close()
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize HTTP client and create directories"""
         self.images_dir.mkdir(parents=True, exist_ok=True)
 
@@ -43,7 +44,7 @@ class ImageDownloader:
             },
         )
 
-    async def close(self):
+    async def close(self) -> None:
         """Close HTTP client"""
         if self.client:
             await self.client.aclose()
@@ -92,7 +93,6 @@ class ImageDownloader:
         Download a single image with validation and size limits
         Returns: (success, local_path, error_message)
         """
-        import imghdr
         import ssl
 
         try:
@@ -117,6 +117,8 @@ class ImageDownloader:
 
             # First, make a HEAD request to check size
             try:
+                if not self.client:
+                    raise RuntimeError("HTTP client not initialized")
                 head_response = await self.client.head(image_url, follow_redirects=True)
                 content_length = int(head_response.headers.get("Content-Length", 0))
 
@@ -136,6 +138,8 @@ class ImageDownloader:
 
             while redirect_count < 10:
                 try:
+                    if not self.client:
+                        raise RuntimeError("HTTP client not initialized")
                     response = await self.client.get(
                         current_url, follow_redirects=False, timeout=30.0
                     )
@@ -172,28 +176,10 @@ class ImageDownloader:
             if content_size == 0:
                 return False, None, "Empty image content"
 
-            # Verify it's actually an image
-            image_type = imghdr.what(None, content)
-            if not image_type and "svg" not in content_type:
+            # Determine file extension from content type or magic bytes
+            ext = self._get_image_extension(content, content_type)
+            if not ext:
                 return False, None, f"Invalid image format (content-type: {content_type})"
-
-            # Determine file extension
-            if image_type:
-                ext = f".{image_type}"
-            elif "svg" in content_type:
-                ext = ".svg"
-            elif "webp" in content_type:
-                ext = ".webp"
-            else:
-                # Try to get from content type
-                if "png" in content_type:
-                    ext = ".png"
-                elif "gif" in content_type:
-                    ext = ".gif"
-                elif "jpeg" in content_type or "jpg" in content_type:
-                    ext = ".jpg"
-                else:
-                    ext = ".jpg"  # Default
 
             # Update filename with correct extension
             if not str(full_path).endswith(ext):
@@ -233,7 +219,7 @@ class ImageDownloader:
             return False, None, error_msg
 
     async def download_images(
-        self, image_urls: list, page_url: str, max_concurrent: int = 5
+        self, image_urls: list[str], page_url: str, max_concurrent: int = 5
     ) -> dict[str, str]:
         """
         Download multiple images concurrently
@@ -241,7 +227,7 @@ class ImageDownloader:
         """
         semaphore = asyncio.Semaphore(max_concurrent)
 
-        async def download_with_semaphore(url: str):
+        async def download_with_semaphore(url: str) -> tuple[str, str | None]:
             async with semaphore:
                 success, local_path, error = await self.download_image(url, page_url)
                 if success and local_path:
@@ -263,3 +249,59 @@ class ImageDownloader:
     def get_all_mappings(self) -> dict[str, str]:
         """Get all image URL to local path mappings"""
         return self.image_map.copy()
+
+    def _get_image_extension(self, content: bytes, content_type: str) -> str | None:
+        """
+        Determine image file extension from content and content type.
+        This replaces the deprecated imghdr module.
+        """
+        # Check content type first
+        if content_type:
+            if "svg" in content_type:
+                return ".svg"
+            elif "webp" in content_type:
+                return ".webp"
+            elif "png" in content_type:
+                return ".png"
+            elif "gif" in content_type:
+                return ".gif"
+            elif "jpeg" in content_type or "jpg" in content_type:
+                return ".jpg"
+            elif "bmp" in content_type:
+                return ".bmp"
+            elif "ico" in content_type:
+                return ".ico"
+
+        # Check magic bytes if content type doesn't help
+        if len(content) < 12:
+            return None
+
+        # PNG magic bytes
+        if content[:8] == b"\x89PNG\r\n\x1a\n":
+            return ".png"
+
+        # JPEG magic bytes
+        elif content[:3] == b"\xff\xd8\xff":
+            return ".jpg"
+
+        # GIF magic bytes
+        elif content[:6] in (b"GIF87a", b"GIF89a"):
+            return ".gif"
+
+        # WebP magic bytes
+        elif content[:4] == b"RIFF" and content[8:12] == b"WEBP":
+            return ".webp"
+
+        # BMP magic bytes
+        elif content[:2] == b"BM":
+            return ".bmp"
+
+        # ICO magic bytes
+        elif content[:4] == b"\x00\x00\x01\x00":
+            return ".ico"
+
+        # SVG detection (text-based)
+        elif b"<svg" in content[:1024] or b"<?xml" in content[:100]:
+            return ".svg"
+
+        return None

@@ -11,16 +11,16 @@ logger = logging.getLogger(__name__)
 class RedirectHandler:
     """Tracks and handles URL redirects to avoid duplicate content"""
 
-    def __init__(self):
-        self.redirects = {}  # Map of original URL to final URL
-        self.final_urls = {}  # Map of final URL to file path
+    def __init__(self) -> None:
+        self.redirects: dict[str, str] = {}  # Map of original URL to final URL
+        self.final_urls: dict[str, str] = {}  # Map of final URL to file path
 
-    def add_redirect(self, original_url: str, final_url: str):
+    def add_redirect(self, original_url: str, final_url: str) -> None:
         """Record a redirect from original URL to final URL"""
         self.redirects[original_url] = final_url
         logger.info(f"Recorded redirect: {original_url} -> {final_url}")
 
-    def add_final_url(self, url: str, file_path: str):
+    def add_final_url(self, url: str, file_path: str) -> None:
         """Record the file path for a final (non-redirected) URL"""
         self.final_urls[url] = file_path
 
@@ -33,7 +33,7 @@ class RedirectHandler:
         """Get the canonical file path for a URL (following redirects)"""
         # Follow redirect chain
         current_url = url
-        seen = set()
+        seen: set[str] = set()
 
         while current_url in self.redirects:
             if current_url in seen:

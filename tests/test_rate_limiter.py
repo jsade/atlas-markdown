@@ -7,7 +7,12 @@ import time
 
 import pytest
 
-from src.utils.rate_limiter import RateLimiter, RetryConfig, calculate_backoff, retry_async
+from atlas_markdown.utils.rate_limiter import (
+    RateLimiter,
+    RetryConfig,
+    calculate_backoff,
+    retry_async,
+)
 
 
 @pytest.mark.asyncio

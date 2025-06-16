@@ -13,8 +13,8 @@ from rich.console import Console
 from rich.logging import RichHandler
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 
-from src.parsers.link_resolver import LinkResolver
-from src.utils.state_manager import PageStatus, StateManager
+from atlas_markdown.parsers.link_resolver import LinkResolver
+from atlas_markdown.utils.state_manager import PageStatus, StateManager
 
 console = Console()
 

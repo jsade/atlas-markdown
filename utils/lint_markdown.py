@@ -11,7 +11,7 @@ import click
 from rich.console import Console
 from rich.logging import RichHandler
 
-from src.utils.markdown_linter import MarkdownLinter
+from atlas_markdown.utils.markdown_linter import MarkdownLinter
 
 console = Console()
 

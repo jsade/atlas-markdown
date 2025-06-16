@@ -37,7 +37,8 @@ class InitialStateParser:
                         json_str = match.group(2)
                         # Remove comments if present
                         json_str = re.sub(r"/\*.*?\*/", "", json_str, flags=re.DOTALL)
-                        return json.loads(json_str)
+                        parsed_data: dict[str, Any] = json.loads(json_str)
+                        return parsed_data
                 except (json.JSONDecodeError, AttributeError) as e:
                     logger.error(f"Failed to parse __APP_INITIAL_STATE__: {e}")
 
@@ -45,7 +46,7 @@ class InitialStateParser:
 
     def extract_navigation_structure(self, state_data: dict[str, Any]) -> list[dict[str, Any]]:
         """Extract navigation structure from initial state data"""
-        navigation = []
+        navigation: list[dict[str, Any]] = []
 
         # Look for navigation data in various possible locations
         if "navigation" in state_data:
@@ -64,10 +65,10 @@ class InitialStateParser:
 
     def _process_child_list(
         self, child_list: list[dict[str, Any]], navigation: list[dict[str, Any]]
-    ):
+    ) -> None:
         """Process a childList structure"""
         for item in child_list:
-            page_info = {
+            page_info: dict[str, Any] = {
                 "id": item.get("id"),
                 "title": item.get("title"),
                 "slug": item.get("slug", ""),
@@ -95,7 +96,7 @@ class InitialStateParser:
                 # Also add to flat map for easy lookup
                 self.pages_map[page_info["url"]] = page_info
 
-    def _process_navigation_items(self, nav_data: Any, navigation: list[dict[str, Any]]):
+    def _process_navigation_items(self, nav_data: Any, navigation: list[dict[str, Any]]) -> None:
         """Process navigation items from various formats"""
         if isinstance(nav_data, list):
             for item in nav_data:
@@ -106,9 +107,11 @@ class InitialStateParser:
                 if isinstance(value, list | dict):
                     self._process_navigation_items(value, navigation)
 
-    def _process_navigation_item(self, item: dict[str, Any], navigation: list[dict[str, Any]]):
+    def _process_navigation_item(
+        self, item: dict[str, Any], navigation: list[dict[str, Any]]
+    ) -> None:
         """Process a single navigation item"""
-        page_info = {
+        page_info: dict[str, Any] = {
             "id": item.get("id"),
             "title": item.get("title"),
             "url": item.get("url") or item.get("href") or item.get("slug"),
@@ -126,10 +129,11 @@ class InitialStateParser:
                 self._process_navigation_items(item[child_key], page_info["children"])
 
         # Only add if URL is within our base URL
-        if page_info.get("url") and page_info["url"].startswith(self.base_url):
+        url = page_info.get("url")
+        if url and isinstance(url, str) and url.startswith(self.base_url):
             navigation.append(page_info)
 
-    def _process_entries(self, entries: Any, navigation: list[dict[str, Any]]):
+    def _process_entries(self, entries: Any, navigation: list[dict[str, Any]]) -> None:
         """Process entries from various formats"""
         if isinstance(entries, list):
             for entry in entries:
@@ -163,7 +167,7 @@ class InitialStateParser:
         """Get information about a specific page"""
         return self.pages_map.get(url)
 
-    def print_structure(self, navigation: list[dict[str, Any]], indent: int = 0):
+    def print_structure(self, navigation: list[dict[str, Any]], indent: int = 0) -> None:
         """Print the navigation structure for debugging"""
         for item in navigation:
             print(
@@ -206,28 +210,33 @@ class InitialStateParser:
         """Extract the topicTitle from initial state data"""
         # Direct access to topicTitle
         if "topicTitle" in state_data:
-            return state_data["topicTitle"]
+            title = state_data["topicTitle"]
+            return str(title) if title is not None else None
 
         # Check in entry
         if "entry" in state_data and isinstance(state_data["entry"], dict):
             if "topicTitle" in state_data["entry"]:
-                return state_data["entry"]["topicTitle"]
+                title = state_data["entry"]["topicTitle"]
+                return str(title) if title is not None else None
             if "title" in state_data["entry"]:
-                return state_data["entry"]["title"]
+                title = state_data["entry"]["title"]
+                return str(title) if title is not None else None
 
         # Check in various other locations
         for key in ["topic", "page", "content"]:
             if key in state_data and isinstance(state_data[key], dict):
                 if "title" in state_data[key]:
-                    return state_data[key]["title"]
+                    title = state_data[key]["title"]
+                    return str(title) if title is not None else None
                 if "topicTitle" in state_data[key]:
-                    return state_data[key]["topicTitle"]
+                    title = state_data[key]["topicTitle"]
+                    return str(title) if title is not None else None
 
         return None
 
     def extract_topic_metadata(self, state_data: dict[str, Any]) -> dict[str, str | None]:
         """Extract topic title and description from initial state data"""
-        metadata = {"title": None, "description": None}
+        metadata: dict[str, str | None] = {"title": None, "description": None}
 
         # Direct access to topicTitle and description
         if "topicTitle" in state_data:

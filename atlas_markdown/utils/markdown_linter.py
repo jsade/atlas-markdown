@@ -19,7 +19,7 @@ class LintIssue:
     issue_type: str
     description: str
     original: str
-    fixed: str = None
+    fixed: str | None = None
 
 
 class MarkdownLinter:
@@ -122,7 +122,7 @@ class MarkdownLinter:
         # multiple lines]]
         pattern = r"\[\[([^\]|]+)\|([^\]]+)\]\]"
 
-        def fix_multiline_link(match):
+        def fix_multiline_link(match: re.Match[str]) -> str:
             target = match.group(1).strip()
             description = match.group(2).strip()
 
@@ -160,9 +160,11 @@ class MarkdownLinter:
                             line_number=content[: match.start()].count("\n") + 1,
                             issue_type="multiline_wiki_link",
                             description="Fixed wiki link spanning multiple lines",
-                            original=match.group(0)[:50] + "..."
-                            if len(match.group(0)) > 50
-                            else match.group(0),
+                            original=(
+                                match.group(0)[:50] + "..."
+                                if len(match.group(0)) > 50
+                                else match.group(0)
+                            ),
                             fixed=fixed_matches[i].group(0) if i < len(fixed_matches) else "Fixed",
                         )
                     )
@@ -627,7 +629,7 @@ class MarkdownLinter:
         report.append(f"Total issues found: {total_issues}\n")
 
         # Issues by type
-        issue_counts = {}
+        issue_counts: dict[str, int] = {}
         for file_issues in issues.values():
             for issue in file_issues:
                 issue_counts[issue.issue_type] = issue_counts.get(issue.issue_type, 0) + 1
