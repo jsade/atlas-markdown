@@ -9,7 +9,7 @@ from atlas_markdown.utils.file_manager import FileSystemManager
 from atlas_markdown.utils.state_manager import StateManager
 
 
-async def regenerate_index(output_dir: str):
+async def regenerate_index(output_dir: str) -> None:
     """Regenerate the index file"""
     base_url = "https://support.atlassian.com/jira-service-management-cloud/"
 
@@ -20,10 +20,14 @@ async def regenerate_index(output_dir: str):
     await state_manager.initialize()
 
     # Get all pages
-    cursor = await state_manager._db.execute(
-        "SELECT url, title, file_path, status FROM pages ORDER BY url"
-    )
-    pages = await cursor.fetchall()
+    if state_manager._db is not None:
+        cursor = await state_manager._db.execute(
+            "SELECT url, title, file_path, status FROM pages ORDER BY url"
+        )
+        pages = await cursor.fetchall()
+    else:
+        print("Error: Database connection not available")
+        return
 
     # Convert to list of dicts
     pages_list = [dict(p) for p in pages]

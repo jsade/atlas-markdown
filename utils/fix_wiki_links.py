@@ -19,7 +19,7 @@ from atlas_markdown.utils.state_manager import PageStatus, StateManager
 console = Console()
 
 
-def setup_logging(verbose: bool):
+def setup_logging(verbose: bool) -> None:
     """Configure logging with Rich handler"""
     level = logging.DEBUG if verbose else logging.INFO
 
@@ -31,7 +31,7 @@ def setup_logging(verbose: bool):
     )
 
 
-async def fix_links(directory: Path, dry_run: bool, verbose: bool):
+async def fix_links(directory: Path, dry_run: bool, verbose: bool) -> int:
     """Fix wiki links in all markdown files"""
 
     # Initialize components
@@ -47,15 +47,19 @@ async def fix_links(directory: Path, dry_run: bool, verbose: bool):
 
     # Get base URL from any completed page
     state_manager = StateManager()
-    state_manager.db_path = state_db
+    state_manager.db_path = str(state_db)
     await state_manager.__aenter__()
 
     try:
         # Get base URL from a completed page
-        cursor = await state_manager._db.execute(
-            "SELECT url FROM pages WHERE status = ? LIMIT 1", (PageStatus.COMPLETED.value,)
-        )
-        page = await cursor.fetchone()
+        if state_manager._db is not None:
+            cursor = await state_manager._db.execute(
+                "SELECT url FROM pages WHERE status = ? LIMIT 1", (PageStatus.COMPLETED.value,)
+            )
+            page = await cursor.fetchone()
+        else:
+            console.print("[red]Database connection not available[/red]")
+            return 1
 
         if not page:
             console.print("[red]No completed pages found in database[/red]")
@@ -82,15 +86,20 @@ async def fix_links(directory: Path, dry_run: bool, verbose: bool):
         )
 
         # Get all completed pages
-        cursor = await state_manager._db.execute(
-            "SELECT url, file_path FROM pages WHERE status = ?", (PageStatus.COMPLETED.value,)
-        )
-        pages = await cursor.fetchall()
+        if state_manager._db is not None:
+            cursor = await state_manager._db.execute(
+                "SELECT url, file_path FROM pages WHERE status = ?", (PageStatus.COMPLETED.value,)
+            )
+            pages = await cursor.fetchall()
+        else:
+            console.print("[red]Database connection not available[/red]")
+            return 1
 
-        console.print(f"\n[blue]Processing {len(pages)} files...[/blue]")
+        pages_list = list(pages)
+        console.print(f"\n[blue]Processing {len(pages_list)} files...[/blue]")
 
         fixed_count = 0
-        issues = []
+        issues: list[str] = []
 
         with Progress(
             SpinnerColumn(),
@@ -99,9 +108,9 @@ async def fix_links(directory: Path, dry_run: bool, verbose: bool):
             TaskProgressColumn(),
             console=console,
         ) as progress:
-            task = progress.add_task("Fixing wiki links", total=len(pages))
+            task = progress.add_task("Fixing wiki links", total=len(pages_list))
 
-            for page in pages:
+            for page in pages_list:
                 if not page["file_path"]:
                     progress.update(task, advance=1)
                     continue
@@ -179,7 +188,7 @@ async def fix_links(directory: Path, dry_run: bool, verbose: bool):
 )
 @click.option("--dry-run", is_flag=True, help="Show what would be fixed without making changes")
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed changes")
-def main(directory, dry_run, verbose):
+def main(directory: str, dry_run: bool, verbose: bool) -> None:
     """Fix wiki links in scraped documentation.
 
     DIRECTORY is the output directory containing scraped markdown files (default: ./output)

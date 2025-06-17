@@ -25,7 +25,7 @@ class SitemapParser:
                 response.raise_for_status()
 
                 # Validate it's actually XML
-                content = response.text
+                content: str = response.text
                 if not content.strip().startswith("<?xml"):
                     raise ValueError(
                         f"Sitemap does not appear to be valid XML. Content starts with: {content[:100]}"

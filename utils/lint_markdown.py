@@ -16,7 +16,7 @@ from atlas_markdown.utils.markdown_linter import MarkdownLinter
 console = Console()
 
 
-def setup_logging(verbose: bool):
+def setup_logging(verbose: bool) -> None:
     """Configure logging with Rich handler"""
     level = logging.DEBUG if verbose else logging.INFO
 
@@ -33,7 +33,7 @@ def setup_logging(verbose: bool):
 @click.option("--fix", is_flag=True, help="Fix issues in place")
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @click.option("--report", "-r", type=click.Path(), help="Save report to file")
-def lint(directory, fix, verbose, report):
+def lint(directory: str, fix: bool, verbose: bool, report: str | None) -> None:
     """Lint markdown files in DIRECTORY and optionally fix issues."""
 
     setup_logging(verbose)
@@ -69,7 +69,7 @@ def lint(directory, fix, verbose, report):
         else:
             # Show summary
             console.print("\n[bold]Summary by issue type:[/bold]")
-            issue_types = {}
+            issue_types: dict[str, int] = {}
             for file_issues in issues.values():
                 for issue in file_issues:
                     issue_types[issue.issue_type] = issue_types.get(issue.issue_type, 0) + 1

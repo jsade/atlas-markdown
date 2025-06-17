@@ -16,7 +16,7 @@ from atlas_markdown.utils.rate_limiter import (
 
 
 @pytest.mark.asyncio
-async def test_rate_limiter_basic():
+async def test_rate_limiter_basic() -> None:
     """Test basic rate limiting"""
     # 2 requests per second
     limiter = RateLimiter(rate=2.0, burst=2)
@@ -37,11 +37,11 @@ async def test_rate_limiter_basic():
 
 
 @pytest.mark.asyncio
-async def test_rate_limiter_concurrent():
+async def test_rate_limiter_concurrent() -> None:
     """Test rate limiting with concurrent requests"""
     limiter = RateLimiter(rate=1.0, burst=1)
 
-    async def make_request(id):
+    async def make_request(id: int) -> tuple[float, int]:
         await limiter.acquire()
         return time.monotonic(), id
 
@@ -60,7 +60,7 @@ async def test_rate_limiter_concurrent():
     assert 1.8 <= times[2] <= 2.2
 
 
-def test_calculate_backoff():
+def test_calculate_backoff() -> None:
     """Test exponential backoff calculation"""
     config = RetryConfig(initial_delay=1.0, exponential_base=2.0, max_delay=10.0, jitter=False)
 
@@ -81,7 +81,7 @@ def test_calculate_backoff():
     assert delay == 10.0
 
 
-def test_calculate_backoff_with_jitter():
+def test_calculate_backoff_with_jitter() -> None:
     """Test backoff with jitter"""
     config = RetryConfig(initial_delay=1.0, exponential_base=2.0, jitter=True)
 
@@ -96,11 +96,11 @@ def test_calculate_backoff_with_jitter():
 
 
 @pytest.mark.asyncio
-async def test_retry_async_success():
+async def test_retry_async_success() -> None:
     """Test retry with successful function"""
     call_count = 0
 
-    async def func():
+    async def func() -> str:
         nonlocal call_count
         call_count += 1
         return "success"
@@ -112,11 +112,11 @@ async def test_retry_async_success():
 
 
 @pytest.mark.asyncio
-async def test_retry_async_eventual_success():
+async def test_retry_async_eventual_success() -> None:
     """Test retry with eventual success"""
     call_count = 0
 
-    async def func():
+    async def func() -> str:
         nonlocal call_count
         call_count += 1
         if call_count < 3:
@@ -131,11 +131,11 @@ async def test_retry_async_eventual_success():
 
 
 @pytest.mark.asyncio
-async def test_retry_async_all_fail():
+async def test_retry_async_all_fail() -> None:
     """Test retry when all attempts fail"""
     call_count = 0
 
-    async def func():
+    async def func() -> None:
         nonlocal call_count
         call_count += 1
         raise ValueError(f"Attempt {call_count}")
@@ -150,11 +150,11 @@ async def test_retry_async_all_fail():
 
 
 @pytest.mark.asyncio
-async def test_retry_async_specific_exceptions():
+async def test_retry_async_specific_exceptions() -> None:
     """Test retry only on specific exceptions"""
     call_count = 0
 
-    async def func():
+    async def func() -> None:
         nonlocal call_count
         call_count += 1
         if call_count == 1:

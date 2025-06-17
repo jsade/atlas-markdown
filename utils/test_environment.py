@@ -8,14 +8,14 @@ import sys
 from pathlib import Path
 
 
-def test_python_version():
+def test_python_version() -> None:
     """Check Python version"""
     print(f"Python version: {sys.version}")
     assert sys.version_info >= (3, 11), "Python 3.11+ required"
     print("✓ Python version OK")
 
 
-def test_imports():
+def test_imports() -> bool:
     """Test all required imports"""
     required_modules = [
         ("click", "CLI framework"),
@@ -37,7 +37,7 @@ def test_imports():
     ]
 
     print("\nTesting imports:")
-    failures = []
+    failures: list[tuple[str, str]] = []
     for module, description in required_modules:
         try:
             importlib.import_module(module)
@@ -55,7 +55,7 @@ def test_imports():
     return True
 
 
-def test_playwright():
+def test_playwright() -> bool:
     """Test Playwright browser availability"""
     print("\nTesting Playwright:")
     try:
@@ -73,7 +73,7 @@ def test_playwright():
         return False
 
 
-def test_project_structure():
+def test_project_structure() -> bool:
     """Test project structure"""
     print("\nChecking project structure:")
 
@@ -106,7 +106,7 @@ def test_project_structure():
     return all_ok
 
 
-def test_environment_file():
+def test_environment_file() -> bool:
     """Test .env file configuration"""
     print("\nChecking environment configuration:")
 
@@ -133,7 +133,8 @@ def test_environment_file():
                 print("✓ All required environment variables present")
 
                 # Strict validation for BASE_URL
-                base_url = config.get("BASE_URL", "").strip().rstrip("/")
+                base_url_value = config.get("BASE_URL", "")
+                base_url = base_url_value.strip().rstrip("/") if base_url_value else ""
                 required_prefix = "https://support.atlassian.com/"
 
                 if not base_url:
@@ -184,7 +185,7 @@ def test_environment_file():
         return False
 
 
-def test_project_imports():
+def test_project_imports() -> bool:
     """Test importing project modules"""
     print("\nTesting project module imports:")
 
@@ -214,7 +215,7 @@ def test_project_imports():
     return all_ok
 
 
-def main():
+def main() -> None:
     """Run all tests"""
     print("Environment Test for Atlas Markdown")
     print("=" * 60)

@@ -8,13 +8,13 @@ from atlas_markdown.parsers.content_parser import ContentParser
 
 
 @pytest.fixture
-def parser():
+def parser() -> ContentParser:
     """Create a content parser for testing"""
     base_url = "https://support.atlassian.com/jira-service-management-cloud/"
     return ContentParser(base_url)
 
 
-def test_extract_content_from_initial_state(parser):
+def test_extract_content_from_initial_state(parser: ContentParser) -> None:
     """Test extracting content from React initial state"""
     # The actual implementation looks for 'body', 'content', 'articleBody', or 'html' fields
     # with more than 100 characters
@@ -38,7 +38,7 @@ def test_extract_content_from_initial_state(parser):
     assert "<p>This is test content." in content
 
 
-def test_extract_main_content(parser):
+def test_extract_main_content(parser: ContentParser) -> None:
     """Test extracting main content from HTML"""
     html = """
     <html>
@@ -64,7 +64,7 @@ def test_extract_main_content(parser):
     assert "This is the main content." in content
 
 
-def test_convert_to_markdown(parser):
+def test_convert_to_markdown(parser: ContentParser) -> None:
     """Test HTML to Markdown conversion"""
     html = """
     <div>
@@ -95,7 +95,7 @@ def test_convert_to_markdown(parser):
     assert 'print("Hello, World!")' in markdown
 
 
-def test_image_processing(parser):
+def test_image_processing(parser: ContentParser) -> None:
     """Test image URL collection"""
     html = """
     <main>
@@ -114,7 +114,7 @@ def test_image_processing(parser):
     assert any("image3.gif" in img for img in images)
 
 
-def test_update_image_references(parser):
+def test_update_image_references(parser: ContentParser) -> None:
     """Test updating image references in markdown"""
     markdown = """
 # Test Page
@@ -137,7 +137,7 @@ Another image: ![](https://example.com/image2.png)
     assert "https://example.com" not in updated
 
 
-def test_clean_markdown(parser):
+def test_clean_markdown(parser: ContentParser) -> None:
     """Test markdown cleaning"""
 
     # The clean_markdown method is private, so we test it through convert_to_markdown

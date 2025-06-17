@@ -22,35 +22,35 @@ class Colors:
     END = "\033[0m"
 
 
-def print_header(message):
+def print_header(message: str) -> None:
     """Print a formatted header"""
     print(f"\n{Colors.BOLD}{Colors.BLUE}{'=' * 60}{Colors.END}")
     print(f"{Colors.BOLD}{Colors.BLUE}{message.center(60)}{Colors.END}")
     print(f"{Colors.BOLD}{Colors.BLUE}{'=' * 60}{Colors.END}\n")
 
 
-def print_success(message):
+def print_success(message: str) -> None:
     """Print success message"""
     print(f"{Colors.GREEN}✓ {message}{Colors.END}")
 
 
-def print_error(message):
+def print_error(message: str) -> None:
     """Print error message"""
     print(f"{Colors.RED}✗ {message}{Colors.END}")
 
 
-def print_info(message):
+def print_info(message: str) -> None:
     """Print info message"""
     print(f"{Colors.YELLOW}→ {message}{Colors.END}")
 
 
-def check_python_version():
+def check_python_version() -> None:
     """Check if Python version is 3.11 or higher"""
     print_info("Checking Python version...")
     print_success(f"Python {sys.version.split()[0]} detected")
 
 
-def check_macos():
+def check_macos() -> None:
     """Check if running on macOS"""
     print_info("Checking operating system...")
     if platform.system() != "Darwin":
@@ -62,31 +62,62 @@ def check_macos():
         print_success("macOS detected")
 
 
-def create_virtual_environment():
+def create_virtual_environment() -> None:
     """Create Python virtual environment"""
     print_info("Creating virtual environment...")
+
+    # Check if venv exists and is valid
     if Path("venv").exists():
-        print_info("Virtual environment already exists")
-        response = input(f"{Colors.YELLOW}Recreate virtual environment? (y/N): {Colors.END}")
-        if response.lower() == "y":
+        pip_path = Path("venv/bin/pip")
+        venv_is_valid = False
+
+        if pip_path.exists():
+            try:
+                with open(pip_path) as f:
+                    shebang = f.readline().strip()
+                    # Check if shebang points to current directory
+                    current_dir = str(Path.cwd())
+                    if current_dir in shebang:
+                        venv_is_valid = True
+            except Exception:
+                pass
+
+        if not venv_is_valid:
+            print_error("Virtual environment appears to be relocated or corrupted")
+            print_info("Removing and recreating virtual environment...")
             subprocess.run(["rm", "-rf", "venv"], check=True)
         else:
-            return
+            print_info("Virtual environment already exists")
+            response = input(f"{Colors.YELLOW}Recreate virtual environment? (y/N): {Colors.END}")
+            if response.lower() == "y":
+                subprocess.run(["rm", "-rf", "venv"], check=True)
+            else:
+                return
 
+    # Create new virtual environment
     subprocess.run([sys.executable, "-m", "venv", "venv"], check=True)
     print_success("Virtual environment created")
 
 
-def get_venv_python():
+def get_venv_python() -> str:
     """Get path to Python in virtual environment"""
     return "./venv/bin/python" if platform.system() != "Windows" else "./venv/Scripts/python"
 
 
-def install_dependencies():
+def install_dependencies() -> None:
     """Install Python dependencies"""
     print_info("Installing Python dependencies...")
 
-    pip = "./venv/bin/pip" if platform.system() != "Windows" else "./venv/Scripts/pip"
+    # Check if venv exists
+    venv_pip = "./venv/bin/pip" if platform.system() != "Windows" else "./venv/Scripts/pip"
+
+    if not Path(venv_pip).exists():
+        print_error(f"Virtual environment pip not found at {venv_pip}")
+        print_info("Please ensure the virtual environment is properly created")
+        sys.exit(1)
+
+    # Use the venv pip directly
+    pip = venv_pip
 
     # Upgrade pip first
     subprocess.run([pip, "install", "--upgrade", "pip"], check=True)
@@ -107,6 +138,7 @@ def install_dependencies():
         "python-dotenv",
         "psutil",
         "lxml",
+        "PyYAML",
     ]
 
     # Development dependencies
@@ -119,6 +151,15 @@ def install_dependencies():
         "mypy",
         "pre-commit",
         "ipdb",
+        # Type stubs for mypy
+        "types-aiofiles",
+        "types-PyYAML",
+        "types-psutil",
+        "types-setuptools",
+        "types-beautifulsoup4",
+        "types-click",
+        "types-tqdm",
+        "types-Pillow",
     ]
 
     print_info("Installing core dependencies...")
@@ -130,17 +171,24 @@ def install_dependencies():
     print_success("All dependencies installed")
 
 
-def install_playwright_browser():
+def install_playwright_browser() -> None:
     """Install Playwright Chromium browser"""
     print_info("Installing Playwright Chromium browser...")
+    # Use venv playwright
     playwright = (
         "./venv/bin/playwright" if platform.system() != "Windows" else "./venv/Scripts/playwright"
     )
+
+    if not Path(playwright).exists():
+        print_error(f"Playwright not found at {playwright}")
+        print_info("Please ensure playwright is installed in the virtual environment")
+        sys.exit(1)
+
     subprocess.run([playwright, "install", "chromium"], check=True)
     print_success("Chromium browser installed")
 
 
-def create_project_structure():
+def create_project_structure() -> None:
     """Create project directory structure"""
     print_info("Creating project structure...")
 
@@ -172,7 +220,7 @@ def create_project_structure():
     print_success("Project structure created")
 
 
-def create_configuration_files():
+def create_configuration_files() -> None:
     """Create configuration files"""
     print_info("Creating configuration files...")
 
@@ -253,29 +301,10 @@ omit = ["tests/*", "venv/*"]
         with open("pyproject.toml", "w") as f:
             f.write(pyproject_content)
 
-    # .env.example - copy from existing if available, otherwise create basic version
-    if Path(".env.example").exists():
-        print_info(".env.example already exists, skipping...")
-    else:
-        # Create a minimal .env.example pointing to the documentation
-        env_example = """# Atlassian Docs to Markdown Configuration
-#
-# For complete configuration options, run:
-#   atlas-markdown --help
-#
-# Or see the full example configuration at:
-#   https://github.com/jsade/atlas-markdown/
-#
-# Required variable:
-BASE_URL=https://support.atlassian.com/jira-service-management-cloud
-
-# Output directory (will be created if it doesn't exist)
-OUTPUT_DIR=./output
-
-# For all other configuration options, see the repository documentation.
-"""
-        with open(".env.example", "w") as f:
-            f.write(env_example)
+    # Check if .env exists, warn if missing
+    if not Path(".env").exists():
+        print_info(".env file not found")
+        print_info("You will need to create it from .env.example before continuing.")
 
     # Pre-commit configuration
     if Path(".pre-commit-config.yaml").exists():
@@ -309,11 +338,17 @@ OUTPUT_DIR=./output
     print_success("Configuration files created")
 
 
-def create_requirements_file():
+def create_requirements_file() -> None:
     """Create requirements.txt from installed packages"""
     print_info("Creating requirements.txt...")
 
+    # Use venv pip
     pip = "./venv/bin/pip" if platform.system() != "Windows" else "./venv/Scripts/pip"
+
+    if not Path(pip).exists():
+        print_error(f"Pip not found at {pip}")
+        print_info("Please ensure the virtual environment is properly created")
+        sys.exit(1)
 
     # Get installed packages
     result = subprocess.run([pip, "freeze"], capture_output=True, text=True)
@@ -325,7 +360,7 @@ def create_requirements_file():
     print_success("requirements.txt created")
 
 
-def verify_main_script():
+def verify_main_script() -> None:
     """Verify the main CLI module exists"""
     print_info("Verifying main CLI module...")
 
@@ -339,12 +374,17 @@ def verify_main_script():
         )
 
 
-def setup_pre_commit():
+def setup_pre_commit() -> None:
     """Initialize pre-commit hooks"""
     print_info("Setting up pre-commit hooks...")
+    # Use venv pre-commit
     pre_commit = (
         "./venv/bin/pre-commit" if platform.system() != "Windows" else "./venv/Scripts/pre-commit"
     )
+
+    if not Path(pre_commit).exists():
+        print_info("Pre-commit not yet installed, skipping hook setup")
+        return
 
     try:
         subprocess.run([pre_commit, "install"], check=True)
@@ -353,7 +393,7 @@ def setup_pre_commit():
         print_info("Skipping pre-commit setup (git repository not initialized)")
 
 
-def print_next_steps():
+def print_next_steps() -> None:
     """Print next steps for the user"""
     print_header("Setup Complete!")
 
@@ -366,16 +406,17 @@ def print_next_steps():
     print(f"   {Colors.GREEN}# Edit .env with your settings{Colors.END}\n")
 
     print(f"{Colors.BOLD}3. Run Atlas Markdown:{Colors.END}")
-    print(f"   {Colors.GREEN}atlas-markdown --help{Colors.END}")
-    print(f"   {Colors.GREEN}atlas-markdown --output ./docs{Colors.END}\n")
+    print(f"   {Colors.GREEN}./run.sh{Colors.END}")
+    print(f"   {Colors.GREEN}# or: python -m atlas_markdown.cli --help{Colors.END}")
+    print(f"   {Colors.GREEN}# or: python -m atlas_markdown.cli --output ./docs{Colors.END}\n")
 
     print(f"{Colors.BOLD}4. Run tests:{Colors.END}")
     print(f"   {Colors.GREEN}pytest tests/{Colors.END}\n")
 
-    print(f"{Colors.YELLOW}For more information, see README.md and CLAUDE.md{Colors.END}")
+    print(f"{Colors.YELLOW}For more information, see README.md{Colors.END}")
 
 
-def main():
+def main() -> None:
     """Main initialization function"""
     print_header("Atlas Markdown Setup")
 

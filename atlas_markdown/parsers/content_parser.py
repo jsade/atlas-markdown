@@ -5,9 +5,10 @@ Content parser for extracting and converting HTML to Markdown
 import json
 import logging
 import re
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urljoin
 
+import yaml
 from bs4 import BeautifulSoup, Tag
 from markdownify import markdownify as md
 
@@ -591,7 +592,7 @@ class ContentParser:
             panel.replace_with(blockquote)
 
         # Custom conversion options - using default tags instead of specifying convert list
-        markdown = md(str(soup), heading_style="ATX", bullets="-", code_language="")
+        markdown: str = cast(str, md(str(soup), heading_style="ATX", bullets="-", code_language=""))
 
         # Only add title as H1 if it's not already in the content
         if title and not soup.find("h1"):
@@ -619,9 +620,7 @@ class ContentParser:
                 frontmatter["description"] = self.current_page_description
 
         # Format frontmatter as YAML
-        import yaml
-
-        metadata_str = yaml.dump(frontmatter, default_flow_style=False, sort_keys=False)
+        metadata_str: str = yaml.dump(frontmatter, default_flow_style=False, sort_keys=False)
         markdown = f"---\n{metadata_str}---\n\n{markdown}"
 
         # Clean up markdown

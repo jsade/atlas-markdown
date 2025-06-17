@@ -4,6 +4,7 @@ Tests for state management functionality
 
 import os
 import tempfile
+from collections.abc import AsyncGenerator
 
 import pytest
 
@@ -11,7 +12,7 @@ from atlas_markdown.utils.state_manager import PageStatus, StateManager
 
 
 @pytest.fixture
-async def state_manager():
+async def state_manager() -> AsyncGenerator[StateManager, None]:
     """Create a temporary state manager for testing"""
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
         db_path = tmp.name
@@ -26,7 +27,7 @@ async def state_manager():
 
 
 @pytest.mark.asyncio
-async def test_page_lifecycle(state_manager):
+async def test_page_lifecycle(state_manager: StateManager) -> None:
     """Test adding and updating page status"""
     url = "https://example.com/page1"
 
@@ -51,7 +52,7 @@ async def test_page_lifecycle(state_manager):
 
 
 @pytest.mark.asyncio
-async def test_pending_pages(state_manager):
+async def test_pending_pages(state_manager: StateManager) -> None:
     """Test retrieving pending pages"""
     # Add multiple pages
     pages = [
@@ -73,7 +74,7 @@ async def test_pending_pages(state_manager):
 
 
 @pytest.mark.asyncio
-async def test_image_tracking(state_manager):
+async def test_image_tracking(state_manager: StateManager) -> None:
     """Test image tracking functionality"""
     page_url = "https://example.com/page1"
     img_url = "https://example.com/image.jpg"
@@ -96,7 +97,7 @@ async def test_image_tracking(state_manager):
 
 
 @pytest.mark.asyncio
-async def test_statistics(state_manager):
+async def test_statistics(state_manager: StateManager) -> None:
     """Test statistics calculation"""
     # Add pages with different statuses
     await state_manager.add_page("https://example.com/page1")
@@ -115,7 +116,7 @@ async def test_statistics(state_manager):
 
 
 @pytest.mark.asyncio
-async def test_reset_in_progress(state_manager):
+async def test_reset_in_progress(state_manager: StateManager) -> None:
     """Test resetting in-progress pages"""
     url = "https://example.com/page1"
 

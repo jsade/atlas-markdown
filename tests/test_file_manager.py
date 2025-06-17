@@ -4,6 +4,7 @@ Tests for file system management
 
 import shutil
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
 
 import pytest
@@ -12,7 +13,7 @@ from atlas_markdown.utils.file_manager import FileSystemManager
 
 
 @pytest.fixture
-def file_manager():
+def file_manager() -> Generator[FileSystemManager, None, None]:
     """Create a temporary file manager for testing"""
     temp_dir = tempfile.mkdtemp()
     base_url = "https://support.atlassian.com/jira-service-management-cloud/"
@@ -25,7 +26,7 @@ def file_manager():
     shutil.rmtree(temp_dir)
 
 
-def test_url_to_filepath_basic(file_manager):
+def test_url_to_filepath_basic(file_manager: FileSystemManager) -> None:
     """Test basic URL to filepath conversion"""
     url = "https://support.atlassian.com/jira-service-management-cloud/docs/getting-started"
 
@@ -37,7 +38,7 @@ def test_url_to_filepath_basic(file_manager):
     )  # Converted from slug to proper name with capitalized 'Started'
 
 
-def test_url_to_filepath_index(file_manager):
+def test_url_to_filepath_index(file_manager: FileSystemManager) -> None:
     """Test URL ending with slash creates index.md"""
     url = "https://support.atlassian.com/jira-service-management-cloud/docs/"
 
@@ -47,7 +48,7 @@ def test_url_to_filepath_index(file_manager):
     assert filename == "index.md"
 
 
-def test_url_to_filepath_root(file_manager):
+def test_url_to_filepath_root(file_manager: FileSystemManager) -> None:
     """Test root URL creates index.md at root"""
     url = "https://support.atlassian.com/jira-service-management-cloud/"
 
@@ -57,7 +58,7 @@ def test_url_to_filepath_root(file_manager):
     assert filename == "index.md"
 
 
-def test_url_to_filepath_special_chars(file_manager):
+def test_url_to_filepath_special_chars(file_manager: FileSystemManager) -> None:
     """Test handling of special characters in URLs"""
     url = "https://support.atlassian.com/jira-service-management-cloud/docs/what's-new?"
 
@@ -69,7 +70,7 @@ def test_url_to_filepath_special_chars(file_manager):
 
 
 @pytest.mark.asyncio
-async def test_save_content(file_manager):
+async def test_save_content(file_manager: FileSystemManager) -> None:
     """Test saving content to file"""
     url = "https://support.atlassian.com/jira-service-management-cloud/docs/test-page"
     content = "# Test Page\n\nThis is test content."
@@ -87,7 +88,7 @@ async def test_save_content(file_manager):
 
 
 @pytest.mark.asyncio
-async def test_save_content_duplicate(file_manager):
+async def test_save_content_duplicate(file_manager: FileSystemManager) -> None:
     """Test handling duplicate filenames"""
     url = "https://support.atlassian.com/jira-service-management-cloud/docs/test-page"
     content1 = "# Test Page\n\nFirst version."
@@ -109,7 +110,7 @@ async def test_save_content_duplicate(file_manager):
 
 
 @pytest.mark.asyncio
-async def test_create_index(file_manager):
+async def test_create_index(file_manager: FileSystemManager) -> None:
     """Test index generation"""
     pages = [
         {

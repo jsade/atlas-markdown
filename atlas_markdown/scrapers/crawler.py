@@ -412,7 +412,7 @@ class DocumentationCrawler:
             for selector in title_selectors:
                 element = await self.page.query_selector(selector)
                 if element:
-                    title = await element.inner_text()
+                    title: str = await element.inner_text()
                     return title.strip()
 
         except Exception as e:
