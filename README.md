@@ -13,28 +13,28 @@
 <div align="center">
     <picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/Apps-dark_Confluence_logo_brand_RGB.svg" height="15" />
-        <source media="(prefers-color-scheme: light)" srcset="docs/images/Apps-light_Confluence_logo_brand_RGB.svg" height="15" />
-        <img src="docs/images/Apps-light_Confluence_logo_brand_RGB.svg" alt="Confluence" height="15" />
+        <source media="(prefers-color-scheme: light)" srcset="docs/images/Apps-light_Confluence_Logo_brand_RGB.svg" height="15" />
+        <img src="docs/images/Apps-light_Confluence_Logo_brand_RGB.svg" alt="Confluence" height="15" />
     </picture>
     <picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/Apps-dark_Jira_logo_brand_RGB.svg" height="15" />
-        <source media="(prefers-color-scheme: light)" srcset="docs/images/Apps-light_Jira_logo_brand_RGB.svg" height="15" />
-        <img src="docs/images/Apps-light_Jira_logo_brand_RGB.svg" alt="Jira" height="15" />
+        <source media="(prefers-color-scheme: light)" srcset="docs/images/Apps-light_Jira_Logo_brand_RGB.svg" height="15" />
+        <img src="docs/images/Apps-light_Jira_Logo_brand_RGB.svg" alt="Jira" height="15" />
     </picture>
     <picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/Apps-dark_Jira-Service-Management_logo_brand_RGB.svg" height="15" />
-        <source media="(prefers-color-scheme: light)" srcset="docs/images/Apps-light_Jira-Service-Management_logo_brand_RGB.svg" alt="Jira Service Management" height="15" />
-        <img src="docs/images/Apps-light_Jira-Service-Management_logo_brand_RGB.svg" alt="Jira Service Management" height="15" />
+        <source media="(prefers-color-scheme: light)" srcset="docs/images/Apps-light_Jira-Service-Management_Logo_brand_RGB.svg" alt="Jira Service Management" height="15" />
+        <img src="docs/images/Apps-light_Jira-Service-Management_Logo_brand_RGB.svg" alt="Jira Service Management" height="15" />
     </picture>
     <picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/Apps-dark_Trello_logo_brand_RGB.svg" height="15" />
-        <source media="(prefers-color-scheme: light)" srcset="docs/images/Apps-light_Trello_logo_brand_RGB.svg" height="15" />
-        <img src="docs/images/Apps-light_Trello_logo_brand_RGB.svg" alt="Trello" height="15" />
+        <source media="(prefers-color-scheme: light)" srcset="docs/images/Apps-light_Trello_Logo_brand_RGB.svg" height="15" />
+        <img src="docs/images/Apps-light_Trello_Logo_brand_RGB.svg" alt="Trello" height="15" />
     </picture>
     <picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/Apps-dark_Bitbucket_logo_brand_RGB.svg" height="15" />
-        <source media="(prefers-color-scheme: light)" srcset="docs/images/Apps-light_Bitbucket_logo_brand_RGB.svg" height="15" />
-        <img src="docs/images/Apps-light_Bitbucket_logo_brand_RGB.svg" alt="Bitbucket" height="15" />
+        <source media="(prefers-color-scheme: light)" srcset="docs/images/Apps-light_Bitbucket_Logo_brand_RGB.svg" height="15" />
+        <img src="docs/images/Apps-light_Bitbucket_Logo_brand_RGB.svg" alt="Bitbucket" height="15" />
     </picture>
     <picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/Apps-dark_Statuspage_logo_brand_RGB.svg" height="15" />
