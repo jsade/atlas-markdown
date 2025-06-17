@@ -1,38 +1,49 @@
-
-<h1><p align="center">Atlas Markdown</p></h1>
-
-<img src="docs/images/obsidian.png" alt="Obsidian" align="right" height="100%"/>
-<div style="width: 100%; text-align: center; margin-bottom: 20px; display: flex; flex-wrap: wrap; justify-content: center;">
-<div align="center" style="text-align: center; flex-wrap: nowrap; justify-content: center; padding-bottom:10px;">
-    <img align="left" src="docs/images/Apps-dark_Confluence_logo_brand_RGB.svg" alt="Confluence" height="20"/>
-</div>
-<div align="center" style="text-align: center; flex-wrap: nowrap; justify-content: center; padding-bottom:10px;">
-    <img align="left" src="docs/images/Apps-dark_Jira_logo_brand_RGB.svg" alt="Jira" height="20"/>
-</div>
-<div align="center" style="text-align: center; flex-wrap: nowrap; justify-content: center; padding-bottom:10px;">
-    <img align="left" src="docs/images/Apps-dark_Jira-Service-Management_logo_brand_RGB.svg" alt="Jira Service Management" height="20"/>
-</div>
-<div align="center" style="text-align: center; flex-wrap: nowrap; justify-content: center; padding-bottom:10px;">
-    <img align="left" src="docs/images/Apps-dark_Trello_logo_brand_RGB.svg" alt="Trello" height="20"/>
-</div>
-<div align="center" style="text-align: center; flex-wrap: nowrap; justify-content: center; padding-bottom:10px;">
-    <img align="left" src="docs/images/Apps-dark_Bitbucket_logo_brand_RGB.svg" alt="Bitbucket" height="20"/>
-</div>
-<div align="center" style="text-align: center; flex-wrap: nowrap; justify-content: center; padding-bottom:10px;">
-    <img align="left" src="docs/images/Apps-dark_Statuspage_logo_brand_RGB.svg" alt="Statuspage" height="20"/>
-</div>
-</div>
+<h1>
+    <p align="center">Atlas Markdown</p>
+</h1>
 
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/obsidian.png" />
+  <source media="(prefers-color-scheme: light)" srcset="docs/images/obsidian.png" />
+  <img src="docs/images/obsidian.png" alt="Obsidian" align="center" />
+</picture>
 
-<div style="display: flex; align-items: flex-start;">
-  <div style="flex: 1; padding-right: 20px;">
+
+<div align="center">
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/images/Apps-dark_Confluence_logo_brand_RGB.svg" height="15" />
+        <source media="(prefers-color-scheme: light)" srcset="docs/images/Apps-light_Confluence_logo_brand_RGB.svg" height="15" />
+        <img src="docs/images/Apps-light_Confluence_logo_brand_RGB.svg" alt="Confluence" height="15" />
+    </picture>
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/images/Apps-dark_Jira_logo_brand_RGB.svg" height="15" />
+        <source media="(prefers-color-scheme: light)" srcset="docs/images/Apps-light_Jira_logo_brand_RGB.svg" height="15" />
+        <img src="docs/images/Apps-light_Jira_logo_brand_RGB.svg" alt="Jira" height="15" />
+    </picture>
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/images/Apps-dark_Jira-Service-Management_logo_brand_RGB.svg" height="15" />
+        <source media="(prefers-color-scheme: light)" srcset="docs/images/Apps-light_Jira-Service-Management_logo_brand_RGB.svg" alt="Jira Service Management" height="15" />
+        <img src="docs/images/Apps-light_Jira-Service-Management_logo_brand_RGB.svg" alt="Jira Service Management" height="15" />
+    </picture>
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/images/Apps-dark_Trello_logo_brand_RGB.svg" height="15" />
+        <source media="(prefers-color-scheme: light)" srcset="docs/images/Apps-light_Trello_logo_brand_RGB.svg" height="15" />
+        <img src="docs/images/Apps-light_Trello_logo_brand_RGB.svg" alt="Trello" height="15" />
+    </picture>
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/images/Apps-dark_Bitbucket_logo_brand_RGB.svg" height="15" />
+        <source media="(prefers-color-scheme: light)" srcset="docs/images/Apps-light_Bitbucket_logo_brand_RGB.svg" height="15" />
+        <img src="docs/images/Apps-light_Bitbucket_logo_brand_RGB.svg" alt="Bitbucket" height="15" />
+    </picture>
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/images/Apps-dark_Statuspage_logo_brand_RGB.svg" height="15" />
+        <source media="(prefers-color-scheme: light)" srcset="docs/images/Apps-light_Statuspage_logo_brand_RGB.svg" height="15" />
+        <img src="docs/images/Apps-light_Statuspage_logo_brand_RGB.svg" alt="Statuspage" height="15" />
+    </picture>
+</div>
+
 A robust command-line tool for transforming selected <strong><a href="https://support.atlassian.com">Atlassian online product documentation</a></strong> into a clean, organized Markdown site on your local filesystem. Built specifically for use with <strong><a href="https://obsidian.md/)">Obsidian</a></strong>, though any markdown viewer will work.
-  </div>
-  <div>
-    <img align="right" src="docs/images/obsidian-logo-text-white-purple.svg" alt="Obsidian" height="30" />
-  </div>
-</div>
 
 <br/>
 
