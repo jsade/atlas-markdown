@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.1.2 (2025-06-17)
+
+### Chores
+
+- Add new SVG logos for Jira, Bitbucket, Statuspage, Trello, and Obsidian
+  ([`5ef782b`](https://github.com/jsade/atlas-markdown/commit/5ef782b28e6a3623f39fdf079ec8f57ae695131e))
+
+
 ## v0.1.1 (2025-06-16)
 
 ### Bug Fixes
