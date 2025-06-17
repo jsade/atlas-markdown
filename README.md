@@ -2,7 +2,6 @@
     <p align="center">Atlas Markdown</p>
 </h1>
 
-
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/obsidian.png" />
   <source media="(prefers-color-scheme: light)" srcset="docs/images/obsidian.png" />
@@ -46,6 +45,9 @@
 A robust command-line tool for transforming selected <strong><a href="https://support.atlassian.com">Atlassian online product documentation</a></strong> into a clean, organized Markdown site on your local filesystem. Built specifically for use with <strong><a href="https://obsidian.md/)">Obsidian</a></strong>, though any markdown viewer will work.
 
 <br/>
+
+> [!CAUTION]
+> Pre-release, currently in testing phase. Iterative changes to be expected.
 
 
 ## Features
