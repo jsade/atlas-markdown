@@ -34,7 +34,7 @@ jobs:
         with:
           fetch-depth: 0
           # Checkout the merge commit to simulate what would happen after merge
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Setup git for semantic-release analysis
         run: |
@@ -47,16 +47,16 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
           # Find the merge base to determine which commits would be analyzed
-          MERGE_BASE=$(git merge-base main ${{ github.event.pull_request.head.sha }})
+          MERGE_BASE=$(git merge-base main ${{ github.event.pull_request.head.ref }})
           echo "Merge base: $MERGE_BASE"
 
           # Show what commits would be analyzed for release
           echo "Commits that would be analyzed for release:"
-          git log --oneline $MERGE_BASE..${{ github.event.pull_request.head.sha }}
+          git log --oneline $MERGE_BASE..${{ github.event.pull_request.head.ref }}
 
           # Switch to main and create a temporary merge
           git checkout main
-          git merge --no-ff --no-commit ${{ github.event.pull_request.head.sha }} || {
+          git merge --no-ff --no-commit ${{ github.event.pull_request.head.ref }} || {
             echo "Merge conflict detected - cannot preview release"
             echo "Please resolve conflicts and update the PR"
             exit 1
