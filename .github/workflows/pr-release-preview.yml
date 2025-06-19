@@ -122,7 +122,7 @@ jobs:
           # Check if release would be made with proper error handling
           echo "Checking if release would be made..."
 
-          if ! RELEASE_OUTPUT=$(semantic-release version --noop 2>&1); then
+          if ! RELEASE_OUTPUT=$(semantic-release --noop version 2>&1); then
             echo "Error running semantic-release: $RELEASE_OUTPUT"
             echo "will_release=error" >> $GITHUB_OUTPUT
             echo "error_message=Failed to analyze commits" >> $GITHUB_OUTPUT

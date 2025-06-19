@@ -71,7 +71,7 @@ jobs:
 
           # Check if release is needed
           echo "Checking if release is needed..."
-          if semantic-release version --noop 2>&1 | grep -q "No release will be made"; then
+          if semantic-release --noop version 2>&1 | grep -q "No release will be made"; then
             echo "No release needed"
             echo "released=false" >> $GITHUB_OUTPUT
           else
