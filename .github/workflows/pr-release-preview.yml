@@ -1,0 +1,286 @@
+name: Release Preview
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PR source and permissions
+        id: pr_check
+        run: |
+          # Check if PR is from a fork
+          if [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.event.pull_request.base.repo.full_name }}" ]; then
+            echo "PR is from a fork: ${{ github.event.pull_request.head.repo.full_name }}"
+            echo "is_fork=true" >> $GITHUB_OUTPUT
+
+            # For forks, we have limited permissions and should use a different approach
+            echo "Fork PRs have limited access to secrets and may not be able to run semantic-release properly."
+            echo "The analysis may be incomplete but will still attempt to provide basic information."
+          else
+            echo "PR is from the same repository"
+            echo "is_fork=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # Checkout the merge commit to simulate what would happen after merge
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup git for semantic-release analysis
+        run: |
+          # Fetch all branches and tags
+          git fetch origin main:main
+          git fetch origin ${{ github.event.pull_request.base.ref }}:${{ github.event.pull_request.base.ref }}
+
+          # Create a temporary merge commit to simulate the merge
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Find the merge base to determine which commits would be analyzed
+          MERGE_BASE=$(git merge-base main ${{ github.event.pull_request.head.sha }})
+          echo "Merge base: $MERGE_BASE"
+
+          # Show what commits would be analyzed for release
+          echo "Commits that would be analyzed for release:"
+          git log --oneline $MERGE_BASE..${{ github.event.pull_request.head.sha }}
+
+          # Switch to main and create a temporary merge
+          git checkout main
+          git merge --no-ff --no-commit ${{ github.event.pull_request.head.sha }} || {
+            echo "Merge conflict detected - cannot preview release"
+            echo "Please resolve conflicts and update the PR"
+            exit 1
+          }
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install python-semantic-release
+
+      - name: Validate configuration
+        run: |
+          # Check if pyproject.toml exists and has required semantic-release config
+          if [ ! -f "pyproject.toml" ]; then
+            echo "ERROR: pyproject.toml not found"
+            exit 1
+          fi
+
+          # Validate TOML syntax and version field
+          python -c "
+          import tomllib
+          try:
+              with open('pyproject.toml', 'rb') as f:
+                  config = tomllib.load(f)
+              if 'project' not in config or 'version' not in config['project']:
+                  raise KeyError('Missing project.version in pyproject.toml')
+              print(f'Current version: {config[\"project\"][\"version\"]}')
+          except Exception as e:
+              print(f'ERROR: {e}')
+              exit(1)
+          "
+
+      - name: Check release impact
+        id: release_check
+        env:
+          # Only use GH_TOKEN for non-fork PRs to avoid permission issues
+          GH_TOKEN: ${{ steps.pr_check.outputs.is_fork == 'false' && secrets.GITHUB_TOKEN || '' }}
+        run: |
+          # Get current version with proper error logging
+          if ! CURRENT_VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])" 2>&1); then
+            echo "ERROR: Failed to read version from pyproject.toml: $CURRENT_VERSION"
+            echo "will_release=error" >> $GITHUB_OUTPUT
+            echo "error_message=Cannot read current version from pyproject.toml" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "Current version: $CURRENT_VERSION"
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+          # Handle fork PRs with limited permissions
+          if [ "${{ steps.pr_check.outputs.is_fork }}" = "true" ]; then
+            echo "Fork PR detected - providing limited analysis"
+            echo "will_release=fork_limited" >> $GITHUB_OUTPUT
+            echo "error_message=Fork PRs have limited analysis capabilities" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Check if release would be made with proper error handling
+          echo "Checking if release would be made..."
+
+          if ! RELEASE_OUTPUT=$(semantic-release version --noop 2>&1); then
+            echo "Error running semantic-release: $RELEASE_OUTPUT"
+            echo "will_release=error" >> $GITHUB_OUTPUT
+            echo "error_message=Failed to analyze commits" >> $GITHUB_OUTPUT
+            exit 0  # Don't fail the workflow, just report error
+          fi
+
+          if echo "$RELEASE_OUTPUT" | grep -q "No release will be made"; then
+            echo "will_release=false" >> $GITHUB_OUTPUT
+            echo "release_type=none" >> $GITHUB_OUTPUT
+          else
+            echo "will_release=true" >> $GITHUB_OUTPUT
+
+            # Get next version with error handling
+            if NEXT_VERSION=$(semantic-release version --print 2>/dev/null); then
+              echo "next_version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+
+              # Simplified release type detection using semantic-release output
+              if echo "$RELEASE_OUTPUT" | grep -i "major"; then
+                echo "release_type=major" >> $GITHUB_OUTPUT
+              elif echo "$RELEASE_OUTPUT" | grep -i "minor"; then
+                echo "release_type=minor" >> $GITHUB_OUTPUT
+              elif echo "$RELEASE_OUTPUT" | grep -i "patch"; then
+                echo "release_type=patch" >> $GITHUB_OUTPUT
+              else
+                # Fallback: analyze version strings
+                if [[ "$NEXT_VERSION" != "$CURRENT_VERSION" ]]; then
+                  # Simple version comparison - split and compare parts
+                  IFS='.' read -ra CURRENT_PARTS <<< "$CURRENT_VERSION"
+                  IFS='.' read -ra NEXT_PARTS <<< "$NEXT_VERSION"
+
+                  if [[ ${NEXT_PARTS[0]} -gt ${CURRENT_PARTS[0]} ]]; then
+                    echo "release_type=major" >> $GITHUB_OUTPUT
+                  elif [[ ${NEXT_PARTS[1]} -gt ${CURRENT_PARTS[1]} ]]; then
+                    echo "release_type=minor" >> $GITHUB_OUTPUT
+                  else
+                    echo "release_type=patch" >> $GITHUB_OUTPUT
+                  fi
+                else
+                  echo "release_type=unknown" >> $GITHUB_OUTPUT
+                fi
+              fi
+            else
+              echo "next_version=unknown" >> $GITHUB_OUTPUT
+              echo "release_type=unknown" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+          # Get last released version with error handling
+          if LAST_VERSION=$(semantic-release version --print-last-released 2>/dev/null); then
+            echo "last_version=$LAST_VERSION" >> $GITHUB_OUTPUT
+          else
+            echo "last_version=none" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const willRelease = '${{ steps.release_check.outputs.will_release }}';
+            const currentVersion = '${{ steps.release_check.outputs.current_version }}';
+            const nextVersion = '${{ steps.release_check.outputs.next_version }}';
+            const releaseType = '${{ steps.release_check.outputs.release_type }}';
+            const lastVersion = '${{ steps.release_check.outputs.last_version }}';
+            const errorMessage = '${{ steps.release_check.outputs.error_message }}';
+            const isFork = '${{ steps.pr_check.outputs.is_fork }}' === 'true';
+
+            let body = '## 🚀 Release Preview\n\n';
+
+            // Handle fork PR case
+            if (willRelease === 'fork_limited') {
+              body += `🔒 **Limited Analysis for Fork PR**\n\n`;
+              body += `This PR is from a fork repository, which limits our ability to perform full semantic-release analysis.\n\n`;
+              body += `📋 Current version: \`${currentVersion}\`\n\n`;
+              body += `### For fork contributors:\n`;
+              body += `- The maintainers will review your changes and determine release impact\n`;
+              body += `- Use conventional commit format: \`feat:\`, \`fix:\`, \`BREAKING CHANGE:\`\n`;
+              body += `- Full release analysis will be available after the PR is merged\n`;
+            }
+            // Handle error case
+            else if (willRelease === 'error') {
+              body += `❌ **Unable to analyze release impact**\n\n`;
+              body += `Error: ${errorMessage}\n\n`;
+              body += `This could be due to:\n`;
+              body += `- Merge conflicts with main branch\n`;
+              body += `- Invalid semantic-release configuration\n`;
+              body += `- Missing conventional commit format\n\n`;
+              body += `Please check the workflow logs for more details.`;
+            }
+            // Handle successful analysis
+            else if (willRelease === 'true') {
+              const typeEmoji = {
+                'major': '💥',
+                'minor': '✨',
+                'patch': '🐛',
+                'unknown': '❓'
+              };
+
+              body += `**This PR will trigger a new release when merged!**\n\n`;
+              body += `${typeEmoji[releaseType] || '📦'} **Release Type:** ${releaseType.toUpperCase()}\n`;
+
+              if (nextVersion && nextVersion !== 'unknown') {
+                body += `📈 **Version:** ${currentVersion} → ${nextVersion}\n\n`;
+              } else {
+                body += `📈 **Current Version:** ${currentVersion}\n`;
+                body += `📈 **Next Version:** Unable to determine\n\n`;
+              }
+
+              if (releaseType === 'major') {
+                body += `⚠️ **Breaking Changes Detected** - This will be a major version bump!\n\n`;
+              }
+
+              body += `### What happens next:\n`;
+              body += `1. When this PR is merged to main\n`;
+              body += `2. A new Git tag will be created\n`;
+              body += `3. A GitHub release will be published\n`;
+              body += `4. Distribution packages will be built and uploaded\n`;
+            }
+            // Handle no release case
+            else {
+              body += `**No release will be triggered by this PR**\n\n`;
+              body += `📋 Current version: \`${currentVersion}\`\n`;
+              body += `📝 No conventional commits found that warrant a release\n\n`;
+              body += `### To trigger a release:\n`;
+              body += `- Use \`feat:\` for new features (minor version bump)\n`;
+              body += `- Use \`fix:\` for bug fixes (patch version bump)\n`;
+              body += `- Use \`feat!:\` or \`BREAKING CHANGE:\` for breaking changes (major version bump)\n`;
+            }
+
+            if (lastVersion && lastVersion !== 'none') {
+              body += `\n---\n📚 **Last released version:** \`${lastVersion}\``;
+            }
+
+            // Find existing comment to update
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existingComment = comments.data.find(comment =>
+              comment.user.login === 'github-actions[bot]' &&
+              comment.body.includes('🚀 Release Preview')
+            );
+
+            if (existingComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: body
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
