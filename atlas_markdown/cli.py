@@ -1185,8 +1185,8 @@ class DocumentationScraper(ThrottledScraper):
         console.print(f"\n[bold green]Output saved to: {self.file_manager.output_dir}[/bold green]")
 
 
-@click.command()
-@click.version_option(version=__version__, prog_name="atlas-markdown")
+@click.command(context_settings=dict(help_option_names=["-h", "--help"]))
+@click.version_option(__version__, "-v", "--version", prog_name="atlas-markdown")
 @click.option(
     "--output",
     "-o",
@@ -1209,7 +1209,7 @@ class DocumentationScraper(ThrottledScraper):
 )
 @click.option("--resume", is_flag=True, help="Resume from previous state")
 @click.option("--dry-run", is_flag=True, help="Show what would be scraped without downloading")
-@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+@click.option("--verbose", "-V", is_flag=True, help="Enable verbose output")
 @click.option(
     "--include-resources",
     is_flag=True,
@@ -1237,6 +1237,26 @@ def scrape(
 
     # Validate environment first
     env_config = validate_environment()
+
+    # Check if running with no explicit options (using defaults)
+    # sys.argv[1:] will be empty or only contain the command name
+
+    # Check if no command line arguments were provided (except maybe the script name)
+    no_options_provided = len([arg for arg in sys.argv[1:] if arg.startswith("-")]) == 0
+
+    if no_options_provided:
+        # Print version information
+        console.print(f"[bold blue]Atlas Markdown[/bold blue] version {__version__}")
+
+        # Print scraping target and output directory
+        console.print(f"[bold]Scraping target:[/bold] {env_config['BASE_URL']}")
+        console.print(f"[bold]Output directory:[/bold] {output or env_config['OUTPUT_DIR']}")
+
+        # Ask for confirmation
+        # console.print("\n[yellow]No options provided. Using default configuration.[/yellow]")
+        if not click.confirm("Do you want to continue with these settings?"):
+            console.print("[red]Aborted.[/red]")
+            sys.exit(0)
 
     # Setup logging with configured level
     setup_logging(verbose or env_config["LOG_LEVEL"] == "DEBUG", env_config)
