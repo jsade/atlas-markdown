@@ -4,6 +4,7 @@ Test script to verify the environment is set up correctly
 """
 
 import importlib
+import os
 import sys
 from pathlib import Path
 
@@ -107,82 +108,101 @@ def test_project_structure() -> bool:
 
 
 def test_environment_file() -> bool:
-    """Test .env file configuration"""
+    """Test environment configuration"""
     print("\nChecking environment configuration:")
 
     parent_dir = Path(__file__).parent.parent
     env_file = parent_dir / ".env"
     env_example = parent_dir / ".env.example"
 
-    if env_file.exists():
-        print("✓ .env file exists")
+    # First check system environment variables
+    required_vars = ["BASE_URL"]
+    optional_vars = ["OUTPUT_DIR", "WORKERS", "REQUEST_DELAY"]
 
+    # Check if BASE_URL is in system environment
+    if "BASE_URL" in os.environ:
+        print("✓ BASE_URL found in system environment variables")
+        config = {var: os.environ.get(var, "") for var in required_vars + optional_vars}
+        source = "environment"
+    elif env_file.exists():
+        print("⚠ Using .env file (Note: Consider setting shell environment variables instead)")
+        print("  For example, add to ~/.zshrc or ~/.bashrc:")
+        print('  export BASE_URL="https://support.atlassian.com/jira-service-management-cloud/"')
         # Check for required variables
         try:
             from dotenv import dotenv_values
 
-            config = dotenv_values(env_file)
+            # dotenv_values returns dict[str, str | None], so we need to handle None values
+            raw_config = dotenv_values(env_file)
+            config = {k: v or "" for k, v in raw_config.items()}  # Convert None to empty string
+            source = ".env file"
 
-            required_vars = ["BASE_URL", "OUTPUT_DIR", "WORKERS", "REQUEST_DELAY"]
-            missing = [var for var in required_vars if var not in config]
-
+            missing = [var for var in required_vars if var not in config or not config[var]]
             if missing:
-                print(f"⚠ Missing environment variables: {', '.join(missing)}")
+                print(f"⚠ Missing required variables in {source}: {', '.join(missing)}")
                 return False
-            else:
-                print("✓ All required environment variables present")
-
-                # Strict validation for BASE_URL
-                base_url_value = config.get("BASE_URL", "")
-                base_url = base_url_value.strip().rstrip("/") if base_url_value else ""
-                required_prefix = "https://support.atlassian.com/"
-
-                if not base_url:
-                    print("⚠ BASE_URL is empty")
-                    return False
-
-                if not base_url.startswith(required_prefix):
-                    print(f"⚠ BASE_URL must start with '{required_prefix}' (got '{base_url}')")
-                    print(
-                        "  This scraper is designed specifically for Atlassian support documentation."
-                    )
-                    return False
-
-                # Check if it has an endpoint after the base
-                if base_url == required_prefix.rstrip("/"):
-                    print("⚠ BASE_URL must include a specific product endpoint")
-                    print("  Examples:")
-                    print(f"    - {required_prefix}jira-service-management-cloud")
-                    print(f"    - {required_prefix}jira-software-cloud")
-                    print(f"    - {required_prefix}confluence-cloud")
-                    return False
-
-                # Check for known valid endpoints
-                valid_endpoints = [
-                    "jira-service-management-cloud",
-                    "jira-software-cloud",
-                    "confluence-cloud",
-                    "jira-work-management",
-                    "trello",
-                    "bitbucket-cloud",
-                    "statuspage",
-                ]
-
-                endpoint = base_url.replace(required_prefix, "").split("/")[0]
-                if endpoint not in valid_endpoints:
-                    print(f"⚠ Warning: '{endpoint}' is not a known Atlassian product endpoint")
-                    print(f"  Known endpoints: {', '.join(valid_endpoints)}")
-                    print("  The scraper may not work correctly with unknown endpoints.")
-
-                return True
         except Exception as e:
             print(f"✗ Error reading .env file: {e}")
             return False
     else:
-        print("⚠ .env file not found")
+        print("✗ BASE_URL environment variable not found")
+        print("\n  Set BASE_URL in your shell configuration:")
+        print("  For zsh (~/.zshrc):")
+        print('    export BASE_URL="https://support.atlassian.com/jira-service-management-cloud/"')
+        print("  For bash (~/.bashrc):")
+        print('    export BASE_URL="https://support.atlassian.com/jira-service-management-cloud/"')
+        print("\n  Then reload your shell configuration:")
+        print("    source ~/.zshrc  # or ~/.bashrc")
+
         if env_example.exists():
-            print("  Run: cp .env.example .env")
+            print("\n  Alternatively, for local development only:")
+            print("    cp .env.example .env")
         return False
+
+    # Now we have config from either source
+    print(f"✓ Required environment variables present (from {source})")
+
+    # Strict validation for BASE_URL
+    base_url_value = config.get("BASE_URL", "")
+    base_url = base_url_value.strip().rstrip("/") if base_url_value else ""
+    required_prefix = "https://support.atlassian.com/"
+
+    if not base_url:
+        print("⚠ BASE_URL is empty")
+        return False
+
+    if not base_url.startswith(required_prefix):
+        print(f"⚠ BASE_URL must start with '{required_prefix}' (got '{base_url}')")
+        print("  This scraper is designed specifically for Atlassian support documentation.")
+        return False
+
+    # Check if it has an endpoint after the base
+    if base_url == required_prefix.rstrip("/"):
+        print("⚠ BASE_URL must include a specific product endpoint")
+        print("  Examples:")
+        print(f"    - {required_prefix}jira-service-management-cloud")
+        print(f"    - {required_prefix}jira-software-cloud")
+        print(f"    - {required_prefix}confluence-cloud")
+        return False
+
+    # Check for known valid endpoints
+    valid_endpoints = [
+        "jira-service-management-cloud",
+        "jira-software-cloud",
+        "confluence-cloud",
+        "jira-work-management",
+        "trello",
+        "bitbucket-cloud",
+        "statuspage",
+    ]
+
+    endpoint = base_url.replace(required_prefix, "").split("/")[0]
+    if endpoint not in valid_endpoints:
+        print(f"⚠ Warning: '{endpoint}' is not a known Atlassian product endpoint")
+        print(f"  Known endpoints: {', '.join(valid_endpoints)}")
+        print("  The scraper may not work correctly with unknown endpoints.")
+
+    return True
 
 
 def test_project_imports() -> bool:
@@ -241,7 +261,7 @@ def main() -> None:
         print("\nTroubleshooting:")
         print("1. Run: pip install -r requirements.txt")
         print("2. Run: playwright install chromium")
-        print("3. Run: cp .env.example .env")
+        print("3. Set environment variables in your shell configuration")
         print("4. Check the project structure matches expected layout")
         sys.exit(1)
 

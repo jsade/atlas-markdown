@@ -4,7 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "atlas-markdown"
-version = "0.1.2"
+# Version is now managed dynamically by setuptools_scm
+dynamic = ["version"]
 description = "Atlas Markdown is a Python-based tool that downloads and converts Atlassian product documentation into clean Markdown files optimized for tools like Obsidian."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -51,7 +52,8 @@ dev = [
 atlas-markdown = "atlas_markdown.cli:main"
 
 [tool.semantic_release]
-version_toml = ["pyproject.toml:project.version"]
+# Version is now managed by setuptools_scm through git tags
+version_source = "tag"
 branch = "main"
 upload_to_repository = false
 upload_to_release = true
@@ -114,7 +116,6 @@ module = [
     "markdownify",        # No stubs available
     "playwright.*",       # Complex async API, stubs may not be complete
     "commitizen.*",       # No stubs available
-    "dotenv",            # python-dotenv may not have complete stubs
     "aiosqlite",         # May not have stubs
     "rich.*",            # Rich has py.typed but sometimes has issues
     "httpx",             # Has its own type hints but might need overrides
@@ -123,4 +124,14 @@ ignore_missing_imports = true
 
 [tool.coverage.run]
 source = ["atlas_markdown"]
+
+[tool.setuptools_scm]
+# This will create version strings like:
+# - Tagged releases: 0.1.2
+# - Development: 0.1.2.dev1+g1234567 (with git commit hash)
+# - Development with local changes: 0.1.2.dev1+g1234567.d20231115
+write_to = "atlas_markdown/_version.py"
+local_scheme = "dirty-tag"
+
+[tool.coverage.report]
 omit = ["tests/*", "venv/*"]

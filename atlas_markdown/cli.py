@@ -18,6 +18,7 @@ from rich.logging import RichHandler
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 from rich.table import Table
 
+from atlas_markdown import __version__
 from atlas_markdown.parsers.content_parser import ContentParser
 from atlas_markdown.parsers.initial_state_parser import InitialStateParser
 from atlas_markdown.parsers.link_resolver import LinkResolver
@@ -235,8 +236,12 @@ def validate_environment() -> dict[str, Any]:
             for issue in invalid_vars:
                 console.print(f"  - {issue}")
 
-        console.print("\n[dim]Check your .env file or environment variables[/dim]")
-        console.print("[dim]Example: cp .env.example .env[/dim]\n")
+        console.print("\n[dim]Set environment variables in your shell configuration:[/dim]")
+        console.print("[dim]For zsh (~/.zshrc) or bash (~/.bashrc):[/dim]")
+        console.print(
+            '[dim]export BASE_URL="https://support.atlassian.com/jira-service-management-cloud/"[/dim]'
+        )
+        console.print("[dim]Then run: source ~/.zshrc  # or ~/.bashrc[/dim]\n")
 
     return env_config
 
@@ -1181,22 +1186,26 @@ class DocumentationScraper(ThrottledScraper):
 
 
 @click.command()
+@click.version_option(version=__version__, prog_name="atlas-markdown")
 @click.option(
-    "--output", "-o", default=None, help="Output directory (default: from .env or ./output)"
+    "--output",
+    "-o",
+    default=None,
+    help="Output directory (default: from env var OUTPUT_DIR or ./output)",
 )
 @click.option(
     "--workers",
     "-w",
     default=None,
     type=int,
-    help="Number of concurrent workers (default: from .env or 5)",
+    help="Number of concurrent workers (default: from env var WORKERS or 5)",
 )
 @click.option(
     "--delay",
     "-d",
     default=None,
     type=float,
-    help="Delay between requests in seconds (default: from .env or 1.5)",
+    help="Delay between requests in seconds (default: from env var REQUEST_DELAY or 1.5)",
 )
 @click.option("--resume", is_flag=True, help="Resume from previous state")
 @click.option("--dry-run", is_flag=True, help="Show what would be scraped without downloading")
@@ -1248,7 +1257,7 @@ def scrape(
     # Apply DRY_RUN_DEFAULT if dry_run not explicitly set
     if not dry_run and env_config["DRY_RUN_DEFAULT"]:
         console.print(
-            "[yellow]Note: DRY_RUN_DEFAULT is enabled in .env. Use --dry-run=false to override.[/yellow]\n"
+            "[yellow]Note: DRY_RUN_DEFAULT environment variable is enabled. Use --dry-run=false to override.[/yellow]\n"
         )
         dry_run = True
 

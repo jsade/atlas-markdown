@@ -66,25 +66,29 @@ A robust command-line tool for transforming selected <strong><a href="https://su
 
 ## Quick Start
 
-Download the [latest](https://github.com/jsade/atlas-markdown/releases/latest) release and extract it to a suitable folder.
+Download the wheel file from the [latest release](https://github.com/jsade/atlas-markdown/releases/latest) (e.g., `atlas_markdown-0.1.1-py3-none-any.whl`).
 
 ```bash
-# 1. Run the initialization script
-python3 init.py
-
-# 2. Activate the virtual environment
+# 1. Create and activate a virtual environment
+python3 -m venv venv
 source venv/bin/activate
 
-# 3. Configure settings
-cp .env.example .env
-# Edit .env with your preferences
+# 2. Install from wheel
+pip install atlas_markdown-*.whl
 
-# 4. Test the environment
-python utils/test_environment.py
+# 3. Install browser for web scraping
+playwright install chromium
 
-# 5. Run the script
-atlas-markdown
+# 4. Configure your scraping target
+# Add to your shell profile (~/.zshrc, ~/.bashrc, etc.):
+export BASE_URL="https://support.atlassian.com/jira-service-management-cloud/"
+# See Configuration section below for all environment variables
+
+# 5. Run the tool
+atlas-markdown --help
 ```
+
+For development installation options, see [CONTRIBUTING.md](CONTRIBUTING.md#installation-options).
 
 ## How It Works
 
@@ -269,27 +273,31 @@ atlas-markdown <options> <arguments>
 
 ### Configuration
 
-The script uses environment variables for configuration. Copy `.env.example` to `.env` and adjust:
+The script uses environment variables for configuration. Add these to your shell profile (`~/.zshrc`, `~/.bashrc`, etc.):
 
 ```bash
 # Base URL (must be a valid Atlassian support URL)
-# See .env.example for further information
-BASE_URL=https://support.atlassian.com/jira-service-management-cloud/
+export BASE_URL="https://support.atlassian.com/jira-service-management-cloud/"
 
-# Output settings
-OUTPUT_DIR=./output
-WORKERS=5
-REQUEST_DELAY=1.5
+# Output settings (optional - defaults shown)
+export OUTPUT_DIR="./output"
+export WORKERS="5"
+export REQUEST_DELAY="1.5"
 
-# Safety constraints
-MAX_CRAWL_DEPTH=5
-MAX_PAGES=1000
-MAX_RUNTIME_MINUTES=120
-MAX_RETRIES=3
+# Safety constraints (optional - defaults shown)
+export MAX_CRAWL_DEPTH="5"
+export MAX_PAGES="1000"
+export MAX_RUNTIME_MINUTES="120"
+export MAX_RETRIES="3"
 
 # Domain restriction controls which URLs the script will follow
-# See .env.example for further information
-DOMAIN_RESTRICTION=product
+# Options: product (default), any-atlassian, off
+export DOMAIN_RESTRICTION="product"
+```
+
+After adding these variables, reload your shell configuration:
+```bash
+source ~/.zshrc  # or ~/.bashrc
 ```
 
 ## Troubleshooting
@@ -298,7 +306,7 @@ DOMAIN_RESTRICTION=product
 - Run `playwright install chromium` to ensure browser is installed
 
 **"Too many requests" errors**
-- Increase `REQUEST_DELAY` in `.env`
+- Increase `REQUEST_DELAY` environment variable
 - Reduce `WORKERS` count
 
 **Out of memory errors**

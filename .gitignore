@@ -31,6 +31,9 @@ dist/
 build/
 *.egg-info/
 
+# Generated version file
+atlas_markdown/_version.py
+
 # Database files
 *.db
 *.db-shm

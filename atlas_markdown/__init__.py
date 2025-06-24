@@ -1,3 +1,10 @@
 """Atlas Markdown - Convert Atlassian documentation to Markdown."""
 
-__version__ = "0.1.0"
+try:
+    # Try to get version from setuptools_scm
+    from ._version import version as __version__
+except ImportError:
+    # Fallback to static version
+    __version__ = "0.1.2"
+
+__all__ = ["__version__"]

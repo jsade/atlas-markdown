@@ -95,6 +95,72 @@ Enhancement suggestions are also tracked as [GitHub issues](https://github.com/j
 - **Explain why this enhancement would be useful** to most users
 - **List any alternative solutions** you've considered
 
+### Installation Options
+
+#### Option 1: Install from Source Archive
+
+Download the source archive from the [latest release](https://github.com/jsade/atlas-markdown/releases/latest) (e.g., `atlas-markdown-0.1.1-source.zip`).
+
+```bash
+# 1. Extract the archive
+unzip atlas-markdown-*-source.zip
+cd atlas-markdown-*/
+
+# 2. Run the initialization script
+python3 init.py
+
+# 3. Activate the virtual environment
+source venv/bin/activate
+
+# 4. Configure your scraping target
+# Add to your shell profile (~/.zshrc, ~/.bashrc, etc.):
+export BASE_URL="https://support.atlassian.com/jira-service-management-cloud/"
+
+# 5. Test the environment
+python utils/test_environment.py
+
+# 6. Run the tool
+atlas-markdown
+```
+
+#### Option 2: Development Installation (Recommended for Contributors)
+
+For development or to run from the latest source code:
+
+```bash
+# 1. Clone the repository (or your fork)
+git clone https://github.com/jsade/atlas-markdown.git
+cd atlas-markdown
+
+# 2. Create and activate a virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# 3. Install in editable mode with development dependencies
+pip install -e ".[dev]"
+pre-commit install
+
+# 4. Install browser for web scraping
+playwright install chromium
+
+# 5. Configure your scraping target
+# Add to your shell profile (~/.zshrc, ~/.bashrc, etc.):
+export BASE_URL="https://support.atlassian.com/jira-service-management-cloud/"
+
+# 6. Run the tool (changes to source code take effect immediately)
+atlas-markdown --help
+```
+
+With editable installation, any changes you make to the source code are immediately reflected when running `atlas-markdown`.
+
+**Note on Development Versions**: When you install in development mode, the version will automatically include a development suffix (e.g., `0.1.2.dev1+g1234567`) that shows:
+- The base version (0.1.2)
+- Number of commits since the last tag (dev1)
+- Git commit hash (g1234567)
+- If you have uncommitted changes, it adds `.dirty`
+
+This helps distinguish development installations from official releases.
+
 ### Your First Code Contribution
 
 Unsure where to begin? Look for issues labeled:
@@ -105,26 +171,7 @@ Unsure where to begin? Look for issues labeled:
 
 #### Local Development Setup
 
-1. Fork the repository
-2. Clone your fork:
-```bash
-git clone https://github.com/your-username/atlas-markdown.git
-cd atlas-markdown
-```
-
-3. Run the initialization script:
-```bash
-python3 init.py
-source venv/bin/activate
-```
-
-4. Install development dependencies:
-```bash
-pip install -e ".[dev]"
-pre-commit install
-```
-
-5. Create a branch for your feature:
+After following the development installation above, create a branch for your feature:
 ```bash
 git checkout -b feature/your-feature-name
 ```
@@ -158,6 +205,27 @@ semantic-release version --print
 4. Submit your PR with a clear description
 5. Wait for automated checks to complete
 6. Address review feedback promptly
+
+### Release Process
+
+Our project uses automated semantic release via GitHub Actions. When changes are merged to the `main` branch:
+
+1. **Automatic Version Bumping**: Based on conventional commit messages
+   - `feat:` → minor version (0.1.0 → 0.2.0)
+   - `fix:`, `perf:`, `refactor:` → patch version (0.1.0 → 0.1.1)
+   - `BREAKING CHANGE:` → major version (0.1.0 → 1.0.0)
+
+2. **Release Assets**: Each release includes:
+   - **Wheel Package** (`atlas_markdown-{version}-py3-none-any.whl`): Python wheel for easy installation via pip
+   - **Source Archive** (`atlas-markdown-{version}-source.zip`): Complete source code including all necessary files
+
+3. **Automated Steps**:
+   - Version update in `pyproject.toml`
+   - CHANGELOG.md generation
+   - Git tag creation (`v{version}`)
+   - GitHub release with assets
+
+Note: Releases are GitHub-only (no PyPI publishing currently).
 
 ## Development Process
 

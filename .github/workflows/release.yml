@@ -29,7 +29,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install python-semantic-release build
+          pip install python-semantic-release build wheel setuptools
 
       - name: Validate configuration
         run: |
@@ -97,8 +97,27 @@ jobs:
       - name: Build distribution
         if: steps.release.outputs.released == 'true'
         run: |
-          python -m build
-          # Verify build artifacts were created
+          # Build wheel package
+          python -m build --wheel
+
+          # Create source code archive
+          VERSION=${{ steps.release.outputs.new_version }}
+          SOURCE_DIR="atlas-markdown-${VERSION}"
+          mkdir -p "${SOURCE_DIR}"
+
+          # Copy source files (excluding unnecessary files)
+          rsync -av --exclude='.git' --exclude='*.pyc' --exclude='__pycache__' \
+                --exclude='.venv' --exclude='venv' --exclude='dist' \
+                --exclude='build' --exclude='*.egg-info' \
+                --exclude='scraper_state.db' --exclude='output' \
+                --exclude='.env' --exclude='logs' \
+                . "${SOURCE_DIR}/"
+
+          # Create zip archive
+          zip -r "dist/atlas-markdown-${VERSION}-source.zip" "${SOURCE_DIR}"
+          rm -rf "${SOURCE_DIR}"
+
+          # Verify build artifacts
           if [ ! -d "dist" ] || [ -z "$(ls -A dist 2>/dev/null)" ]; then
             echo "ERROR: No distribution files were created"
             exit 1

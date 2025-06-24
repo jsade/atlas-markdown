@@ -37,6 +37,7 @@ repos:
           - types-psutil>=5.9.0
           - types-setuptools>=68.0.0
           - pytest>=7.0.0
+          - python-dotenv>=1.0.0
 
   - repo: https://github.com/commitizen-tools/commitizen
     rev: v4.8.3
