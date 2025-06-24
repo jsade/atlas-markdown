@@ -633,12 +633,16 @@ class ContentParser:
 
     def _convert_to_wikilinks(self, markdown: str, current_page_url: str) -> str:
         """Convert internal links to wikilinks with relative paths"""
-        # Pattern to match markdown links: [text](url)
-        link_pattern = r"\[([^\]]+)\]\(([^)]+)\)"
+        # Pattern to match markdown links: [text](url) or [text](url "title")
+        # This captures URLs that might have title attributes
+        link_pattern = r'\[([^\]]+)\]\(([^"\s)]+)(?:\s*"[^"]*")?\)'
 
         def convert_link(match: re.Match[str]) -> str:
             text = match.group(1)
             url = match.group(2)
+
+            # Clean the URL - remove any quotes or extra characters
+            url = url.strip().strip("\"'")
 
             # Skip non-HTTP links (anchors, mailto, etc.)
             if not url.startswith(("http://", "https://")):
@@ -649,19 +653,27 @@ class ContentParser:
                 # Extract the path after the base URL
                 path = url[len(self.base_url) :].strip("/")
 
+                # Clean the path - remove any trailing quotes or special characters
+                path = path.rstrip("/\"'")
+
                 # Handle different URL patterns
-                if "/docs/" in path:
-                    # Extract the document slug
-                    doc_slug = path.split("/docs/")[-1].strip("/")
+                if path.startswith("docs/"):
+                    # Extract the document slug (remove "docs/" prefix)
+                    doc_slug = path[5:].strip("/")
+                    # Clean the slug
+                    doc_slug = doc_slug.rstrip("/\"'")
                     # Convert to wikilink format
                     return f"[[{doc_slug}|{text}]]"
-                elif "/resources/" in path:
-                    # Extract the resource slug
-                    resource_slug = path.split("/resources/")[-1].strip("/")
+                elif path.startswith("resources/"):
+                    # Extract the resource slug (remove "resources/" prefix)
+                    resource_slug = path[10:].strip("/")
+                    # Clean the slug
+                    resource_slug = resource_slug.rstrip("/\"'")
                     # Convert to wikilink format with resources prefix
                     return f"[[resources/{resource_slug}|{text}]]"
                 else:
                     # For other internal links, use the full path
+                    path = path.rstrip("/\"'")
                     return f"[[{path}|{text}]]"
 
             # Keep external links as-is

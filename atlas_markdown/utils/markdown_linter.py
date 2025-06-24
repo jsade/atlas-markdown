@@ -48,6 +48,7 @@ class MarkdownLinter:
         # Apply fixes in order
         content = self._fix_content_before_h1(content)
         content = self._fix_multiline_wiki_links(content)
+        content = self._fix_malformed_wikilinks(content)
         content = self._fix_wiki_links(content)
         content = self._fix_broken_tables(content)
         content = self._fix_heading_spacing(content)
@@ -166,6 +167,46 @@ class MarkdownLinter:
                                 else match.group(0)
                             ),
                             fixed=fixed_matches[i].group(0) if i < len(fixed_matches) else "Fixed",
+                        )
+                    )
+
+        return fixed_content
+
+    def _fix_malformed_wikilinks(self, content: str) -> str:
+        """Fix malformed wikilinks that have trailing slashes, quotes, or other issues."""
+        # Pattern to match malformed wikilinks like [[slug/"|text]] or [[slug/ "url"|text]]
+        malformed_pattern = r'\[\[([^|\]]+?)/?(?:\s*"[^"|\]]*")?\|([^\]]+)\]\]'
+
+        def fix_malformed(match: re.Match[str]) -> str:
+            target = match.group(1).strip().rstrip("/\"'")
+            text = match.group(2).strip()
+
+            # Clean the target
+            if target:
+                # Remove any trailing special characters
+                target = target.rstrip("/\"'")
+                return f"[[{target}|{text}]]"
+            return match.group(0)
+
+        fixed_content = re.sub(malformed_pattern, fix_malformed, content)
+
+        # Count how many were fixed
+        original_matches = list(re.finditer(malformed_pattern, content))
+        if len(original_matches) > 0:
+            for match in original_matches:
+                original = match.group(0)
+                target = match.group(1).strip().rstrip("/\"'")
+                text = match.group(2).strip()
+                fixed = f"[[{target}|{text}]]"
+
+                if original != fixed:
+                    self.issues.append(
+                        LintIssue(
+                            line_number=content[: match.start()].count("\n") + 1,
+                            issue_type="malformed_wikilink",
+                            description="Fixed malformed wikilink with trailing slash or quotes",
+                            original=original,
+                            fixed=fixed,
                         )
                     )
 

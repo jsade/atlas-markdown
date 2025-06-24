@@ -18,22 +18,31 @@ class LinkResolver:
         self.base_url = base_url.rstrip("/")
         self.url_to_filename_map: dict[str, str] = {}
         self.title_to_filename_map: dict[str, str] = {}
+        self.url_to_filepath_map: dict[str, str] = {}  # Store full relative paths
 
     def add_page_mapping(self, url: str, title: str, file_path: str) -> None:
         """Add a mapping from URL and title to actual filename"""
-        # Extract just the filename from the full path
+        # Store both the filename and the full relative path
         if file_path:
-            filename = Path(file_path).stem  # Remove .md extension
+            # Store the full relative path (without .md extension)
+            path_obj = Path(file_path)
+            relative_path_no_ext = str(path_obj.with_suffix("")).replace("\\", "/")
+            self.url_to_filepath_map[url.rstrip("/")] = relative_path_no_ext
+
+            # Also store just the filename for backward compatibility
+            filename = path_obj.stem
             self.url_to_filename_map[url.rstrip("/")] = filename
 
             if title:
                 # Also map by title for fallback
                 self.title_to_filename_map[title.lower()] = filename
 
-            logger.debug(f"Added mapping: {url} -> {filename}")
+            logger.debug(f"Added mapping: {url} -> {relative_path_no_ext}")
 
-    def resolve_url_to_wikilink(self, url: str, link_text: str) -> str:
-        """Convert a URL to a wiki link using the actual filename"""
+    def resolve_url_to_wikilink(
+        self, url: str, link_text: str, current_page_path: str | None = None
+    ) -> str:
+        """Convert a URL to a wiki link using relative paths"""
         # Clean the URL
         clean_url = url.rstrip("/")
 
@@ -42,10 +51,18 @@ class LinkResolver:
             # External link - keep as markdown
             return f"[{link_text}]({url})"
 
-        # Check if we have a direct mapping for this URL
-        if clean_url in self.url_to_filename_map:
-            filename = self.url_to_filename_map[clean_url]
-            return f"[[{filename}|{link_text}]]"
+        # Check if we have a mapping for this URL
+        if clean_url in self.url_to_filepath_map:
+            target_path = self.url_to_filepath_map[clean_url]
+
+            # If we have the current page path, calculate relative path
+            if current_page_path:
+                relative_link = self._calculate_relative_path(current_page_path, target_path)
+                return f"[[{relative_link}|{link_text}]]"
+            else:
+                # Fallback to just the filename
+                filename = self.url_to_filename_map[clean_url]
+                return f"[[{filename}|{link_text}]]"
 
         # Try to extract path and check partial mappings
         base_url_clean = self.base_url.rstrip("/")
@@ -131,7 +148,52 @@ class LinkResolver:
 
         return " ".join(result)
 
-    def convert_markdown_links(self, markdown: str, current_page_url: str) -> str:
+    def _calculate_relative_path(self, from_path: str, to_path: str) -> str:
+        """Calculate relative path from one file to another"""
+        # Convert to Path objects, removing .md extension if present
+        from_path_obj = Path(from_path.replace(".md", ""))
+        to_path_obj = Path(to_path.replace(".md", ""))
+
+        # Get the directory of the source file
+        from_dir = from_path_obj.parent
+
+        # Calculate relative path
+        try:
+            # If both paths are in the same directory
+            if from_dir == to_path_obj.parent:
+                return to_path_obj.name
+            else:
+                # Calculate the relative path
+                relative = to_path_obj.relative_to(from_dir)
+                return str(relative).replace("\\", "/")
+        except ValueError:
+            # Paths don't share a common base, need to go up
+            # Count how many levels up we need to go
+            common_parts = 0
+            from_parts = from_dir.parts
+            to_parts = to_path_obj.parts
+
+            # Find common prefix
+            for i, (f, t) in enumerate(zip(from_parts, to_parts, strict=False)):
+                if f == t:
+                    common_parts = i + 1
+                else:
+                    break
+
+            # Calculate the path
+            ups = len(from_parts) - common_parts
+            down_parts = to_parts[common_parts:]
+
+            if ups > 0:
+                result_parts = [".." for _ in range(ups)] + list(down_parts)
+            else:
+                result_parts = list(down_parts)
+
+            return "/".join(result_parts)
+
+    def convert_markdown_links(
+        self, markdown: str, current_page_url: str, current_page_path: str | None = None
+    ) -> str:
         """Convert all internal markdown links to wiki links using proper filenames"""
 
         # First, fix existing wiki links that might have wrong targets
@@ -142,22 +204,43 @@ class LinkResolver:
             target = match.group(1).strip()
             text = match.group(2).strip()
 
-            # Try to find the correct filename for this target
-            # First, check if target matches any filename directly
+            # Skip if it already looks like a relative path
+            if "../" in target or "/" in target:
+                return match.group(0)
+
+            # Try to find the correct path for this target
             target_lower = target.lower()
-            for _url, filename in self.url_to_filename_map.items():
-                if filename.lower() == target_lower:
-                    return f"[[{filename}|{text}]]"
 
-            # Try to find by URL slug conversion
-            # Convert target to URL slug format (e.g., "Where Can My Form Appear" -> "where-can-my-form-appear")
-            slug = target.lower().replace(" ", "-")
+            # Also try converting the target as if it's a URL slug
+            target_as_title = self._url_slug_to_filename(target)
+            target_as_title_lower = target_as_title.lower()
 
-            # Check all URLs for matching slug
-            for check_url, filename in self.url_to_filename_map.items():
-                if slug in check_url.lower():
-                    logger.debug(f"Fixed wiki link: [[{target}|{text}]] -> [[{filename}|{text}]]")
-                    return f"[[{filename}|{text}]]"
+            # Check all URLs for matching filename or slug
+            for url, filepath in self.url_to_filepath_map.items():
+                filename = Path(filepath).name
+                filename_lower = filename.lower()
+
+                # Check if target matches filename directly or as a converted slug
+                if filename_lower == target_lower or filename_lower == target_as_title_lower:
+                    if current_page_path:
+                        relative_link = self._calculate_relative_path(current_page_path, filepath)
+                        logger.debug(
+                            f"Fixed wiki link: [[{target}|{text}]] -> [[{relative_link}|{text}]]"
+                        )
+                        return f"[[{relative_link}|{text}]]"
+                    else:
+                        return f"[[{filename}|{text}]]"
+
+                # Also check if the URL contains the target as a slug
+                if target in url.lower():
+                    if current_page_path:
+                        relative_link = self._calculate_relative_path(current_page_path, filepath)
+                        logger.debug(
+                            f"Fixed wiki link by URL: [[{target}|{text}]] -> [[{relative_link}|{text}]]"
+                        )
+                        return f"[[{relative_link}|{text}]]"
+                    else:
+                        return f"[[{filename}|{text}]]"
 
             # If no match found, keep original
             return match.group(0)
@@ -177,7 +260,7 @@ class LinkResolver:
                 return match.group(0)
 
             # Convert using our resolver
-            return self.resolve_url_to_wikilink(url, text)
+            return self.resolve_url_to_wikilink(url, text, current_page_path)
 
         # Apply the conversion
         return re.sub(link_pattern, convert_link, markdown)

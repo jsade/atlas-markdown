@@ -151,3 +151,28 @@ def test_clean_markdown(parser: ContentParser) -> None:
 
     # The implementation adds spacing around headers which may result in \n\n\n
     # between sections, so we won't test for that restriction
+
+
+def test_wikilink_conversion_with_trailing_slash(parser: ContentParser) -> None:
+    """Test that wikilinks are properly created without malformed patterns"""
+    base_url = parser.base_url
+    html = f"""
+    <main>
+        <h1>Test Page</h1>
+        <p>Here is a <a href="{base_url}docs/change-project-customer-permissions/">link with trailing slash</a>.</p>
+        <p>Another <a href="{base_url}docs/manage-users/" title="Manage users">link with title attribute</a>.</p>
+        <p>And a <a href="{base_url}docs/test-page">link without trailing slash</a>.</p>
+    </main>
+    """
+
+    markdown = parser.convert_to_markdown(html, f"{base_url}docs/current-page", "Test Page")
+
+    # Check that wikilinks are properly formed without trailing slashes or quotes
+    assert "[[change-project-customer-permissions|link with trailing slash]]" in markdown
+    assert "[[manage-users|link with title attribute]]" in markdown
+    assert "[[test-page|link without trailing slash]]" in markdown
+
+    # Ensure no malformed patterns
+    assert '[[change-project-customer-permissions/"|' not in markdown
+    assert '[[manage-users/"|' not in markdown
+    assert '/"|' not in markdown

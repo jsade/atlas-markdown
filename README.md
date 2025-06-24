@@ -269,7 +269,9 @@ atlas-markdown <options> <arguments>
 | `--no-lint` | | Skip markdown linting phase | `False` |
 | `--include-resources` | | Include /resources/ pages | `False` |
 | `--create-redirect-stubs` | | Create stub files for redirected URLs | `False` |
-| `--verbose` | `-v` | Enable verbose output | `False` |
+| `--verbose` | `-V` | Enable verbose output | `False` |
+| `--version` | `-v` | Print version and exit |  |
+
 
 ### Configuration
 

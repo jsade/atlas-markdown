@@ -1059,7 +1059,9 @@ class DocumentationScraper(ThrottledScraper):
                         content = f.read()
 
                     # Fix wiki links using the resolver
-                    updated_content = self.link_resolver.convert_markdown_links(content, page_url)
+                    updated_content = self.link_resolver.convert_markdown_links(
+                        content, page_url, page["file_path"]
+                    )
 
                     # Write back if changed
                     if content != updated_content:
