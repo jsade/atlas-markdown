@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.2.1 (2025-06-24)
+
+### Bug Fixes
+
+- Update version management to use semantic-release in pyproject.toml
+  ([`3c98107`](https://github.com/jsade/atlas-markdown/commit/3c981071314f299576c7c2eb2d0514e8fead2b47))
+
+
 ## v0.2.0 (2025-06-24)
 
 ### Build System
