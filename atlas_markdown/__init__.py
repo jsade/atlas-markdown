@@ -5,6 +5,6 @@ try:
     from ._version import version as __version__
 except ImportError:
     # Fallback to static version
-    __version__ = "0.1.2"
+    __version__ = "0.1.1"
 
 __all__ = ["__version__"]

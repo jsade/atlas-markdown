@@ -4,8 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "atlas-markdown"
-# Version is now managed dynamically by setuptools_scm
-dynamic = ["version"]
+version = "0.1.1"
 description = "Atlas Markdown is a Python-based tool that downloads and converts Atlassian product documentation into clean Markdown files optimized for tools like Obsidian."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -125,13 +124,13 @@ ignore_missing_imports = true
 [tool.coverage.run]
 source = ["atlas_markdown"]
 
-[tool.setuptools_scm]
-# This will create version strings like:
-# - Tagged releases: 0.1.2
-# - Development: 0.1.2.dev1+g1234567 (with git commit hash)
-# - Development with local changes: 0.1.2.dev1+g1234567.d20231115
-write_to = "atlas_markdown/_version.py"
-local_scheme = "dirty-tag"
 
 [tool.coverage.report]
 omit = ["tests/*", "venv/*"]
+
+[tool.setuptools_scm]
+# This provides dynamic versioning for development builds
+# The static version in [project] is used by semantic-release for releases
+write_to = "atlas_markdown/_version.py"
+local_scheme = "dirty-tag"
+fallback_version = "0.1.1"
