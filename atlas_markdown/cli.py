@@ -1185,7 +1185,17 @@ class DocumentationScraper(ThrottledScraper):
         console.print(f"\n[bold green]Output saved to: {self.file_manager.output_dir}[/bold green]")
 
 
-@click.command(context_settings=dict(help_option_names=["-h", "--help"]))
+class CustomHelpCommand(click.Command):
+    """Custom command class to add header to help output"""
+
+    def format_help(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
+        # Add custom header
+        formatter.write(f"Atlas Markdown version {__version__}\n")
+        # Continue with default help formatting
+        super().format_help(ctx, formatter)
+
+
+@click.command(cls=CustomHelpCommand, context_settings=dict(help_option_names=["-h", "--help"]))
 @click.version_option(__version__, "-v", "--version", prog_name="atlas-markdown")
 @click.option(
     "--output",
