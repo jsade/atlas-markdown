@@ -8,14 +8,17 @@ from pathlib import Path
 from re import Match
 from typing import Any
 
+from atlas_markdown.utils.redirect_handler import RedirectHandler
+
 logger = logging.getLogger(__name__)
 
 
 class LinkResolver:
     """Resolves internal links to actual filenames"""
 
-    def __init__(self, base_url: str):
+    def __init__(self, base_url: str, redirect_handler: RedirectHandler | None = None):
         self.base_url = base_url.rstrip("/")
+        self.redirect_handler = redirect_handler
         self.url_to_filename_map: dict[str, str] = {}
         self.title_to_filename_map: dict[str, str] = {}
         self.url_to_filepath_map: dict[str, str] = {}  # Store full relative paths
@@ -39,12 +42,55 @@ class LinkResolver:
 
             logger.debug(f"Added mapping: {url} -> {relative_path_no_ext}")
 
+    def _follow_redirects(self, url: str) -> str:
+        """Follow redirect chain to final URL"""
+        if not self.redirect_handler:
+            return url
+
+        current_url = url
+        seen = set()
+
+        while True:
+            # Check both with and without trailing slash
+            redirect_found = False
+
+            if current_url in self.redirect_handler.redirects:
+                next_url = self.redirect_handler.redirects[current_url]
+                redirect_found = True
+            elif current_url + "/" in self.redirect_handler.redirects:
+                next_url = self.redirect_handler.redirects[current_url + "/"]
+                redirect_found = True
+            elif (
+                current_url.endswith("/")
+                and current_url.rstrip("/") in self.redirect_handler.redirects
+            ):
+                next_url = self.redirect_handler.redirects[current_url.rstrip("/")]
+                redirect_found = True
+
+            if not redirect_found:
+                break
+
+            if current_url in seen:
+                logger.warning(f"Redirect loop detected for {url}")
+                break
+            seen.add(current_url)
+            current_url = next_url.rstrip("/")  # Normalize the URL
+
+        return current_url
+
     def resolve_url_to_wikilink(
         self, url: str, link_text: str, current_page_path: str | None = None
     ) -> str:
         """Convert a URL to a wiki link using relative paths"""
         # Clean the URL
         clean_url = url.rstrip("/")
+
+        # Follow redirects if redirect handler is available
+        if self.redirect_handler:
+            final_url = self._follow_redirects(clean_url)
+            if final_url != clean_url:
+                logger.debug(f"Following redirect: {clean_url} -> {final_url}")
+                clean_url = final_url
 
         # Check if it's an internal link
         if not clean_url.startswith(self.base_url):
