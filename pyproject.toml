@@ -51,7 +51,8 @@ dev = [
 atlas-markdown = "atlas_markdown.cli:main"
 
 [tool.semantic_release]
-# Version is now managed by setuptools_scm through git tags
+# Version is managed by semantic-release in pyproject.toml
+version_toml = ["pyproject.toml:project.version"]
 version_source = "tag"
 branch = "main"
 upload_to_repository = false
