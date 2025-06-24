@@ -76,12 +76,22 @@ class LinkResolver:
         docs_url = f"{base_url_clean}/docs/{path}"
         resources_url = f"{base_url_clean}/resources/{path}"
 
-        if docs_url in self.url_to_filename_map:
-            filename = self.url_to_filename_map[docs_url]
-            return f"[[{filename}|{link_text}]]"
-        elif resources_url in self.url_to_filename_map:
-            filename = self.url_to_filename_map[resources_url]
-            return f"[[{filename}|{link_text}]]"
+        if docs_url in self.url_to_filepath_map:
+            target_path = self.url_to_filepath_map[docs_url]
+            if current_page_path:
+                relative_link = self._calculate_relative_path(current_page_path, target_path)
+                return f"[[{relative_link}|{link_text}]]"
+            else:
+                filename = self.url_to_filename_map.get(docs_url, Path(target_path).name)
+                return f"[[{filename}|{link_text}]]"
+        elif resources_url in self.url_to_filepath_map:
+            target_path = self.url_to_filepath_map[resources_url]
+            if current_page_path:
+                relative_link = self._calculate_relative_path(current_page_path, target_path)
+                return f"[[{relative_link}|{link_text}]]"
+            else:
+                filename = self.url_to_filename_map.get(resources_url, Path(target_path).name)
+                return f"[[{filename}|{link_text}]]"
 
         # Fallback: try to match by title if link text seems like a title
         if link_text and len(link_text) > 3:

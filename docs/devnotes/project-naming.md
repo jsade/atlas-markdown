@@ -96,14 +96,5 @@ description = "Atlas Markdown - Convert Atlassian documentation to Markdown"
 - Always capitalize as "Atlas Markdown" in prose
 - Use `atlas-markdown` for package names and commands (lowercase, hyphenated)
 - Use `atlas_markdown` for Python module names (lowercase, underscored)
-- When space is limited, "Atlas MD" is an acceptable abbreviation
+- When space is limited, "Atlas Md" is an acceptable abbreviation
 - Never use just "Atlas" alone due to naming conflicts
-
-## Future Considerations
-
-The "Atlas" prefix allows for potential expansion:
-- `atlas-markdown` - Current tool
-- `atlas-sync` - Future real-time sync tool
-- `atlas-export` - Future multi-format exporter
-
-This creates a consistent ecosystem of Atlassian documentation tools under the Atlas brand.
