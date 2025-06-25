@@ -8,6 +8,8 @@ from pathlib import Path
 from re import Match
 from typing import Any
 
+import httpx
+
 from atlas_markdown.utils.redirect_handler import RedirectHandler
 
 logger = logging.getLogger(__name__)
@@ -22,6 +24,7 @@ class LinkResolver:
         self.url_to_filename_map: dict[str, str] = {}
         self.title_to_filename_map: dict[str, str] = {}
         self.url_to_filepath_map: dict[str, str] = {}  # Store full relative paths
+        self.url_verification_cache: dict[str, str | None] = {}  # Cache for URL verifications
 
     def add_page_mapping(self, url: str, title: str, file_path: str) -> None:
         """Add a mapping from URL and title to actual filename"""
@@ -298,7 +301,31 @@ class LinkResolver:
                     else:
                         return f"[[{filename}|{text}]]"
 
-            # If no match found, keep original
+            # If no match found, try URL verification
+            # Construct the full URL from the slug
+            potential_urls = [
+                f"{self.base_url}/docs/{target}/",
+                f"{self.base_url}/docs/{target}",
+                f"{self.base_url}/resources/{target}/",
+                f"{self.base_url}/resources/{target}",
+            ]
+
+            for potential_url in potential_urls:
+                final_url = self.verify_url(potential_url)
+                if final_url and final_url in self.url_to_filepath_map:
+                    filepath = self.url_to_filepath_map[final_url]
+                    if current_page_path:
+                        relative_link = self._calculate_relative_path(current_page_path, filepath)
+                        logger.info(
+                            f"Resolved wiki link via URL verification: [[{target}|{text}]] -> [[{relative_link}|{text}]]"
+                        )
+                        return f"[[{relative_link}|{text}]]"
+                    else:
+                        filename = Path(filepath).name
+                        return f"[[{filename}|{text}]]"
+
+            # If still no match found, log it and keep original
+            logger.warning(f"Unable to resolve wikilink: [[{target}|{text}]]")
             return match.group(0)
 
         markdown = re.sub(wiki_pattern, fix_wiki_link, markdown)
@@ -335,6 +362,38 @@ class LinkResolver:
             logger.info(f"Loaded {len(self.url_to_filename_map)} URL mappings")
         except Exception as e:
             logger.error(f"Failed to load mappings from state manager: {e}")
+
+    def verify_url(self, url: str) -> str | None:
+        """Verify if a URL exists and follow redirects to get the final URL
+
+        Returns:
+            The final URL after following redirects, or None if the URL doesn't exist
+        """
+        # Check cache first
+        if url in self.url_verification_cache:
+            return self.url_verification_cache[url]
+
+        try:
+            # Make a HEAD request to check if the URL exists
+            with httpx.Client(follow_redirects=True, timeout=10.0) as client:
+                response = client.head(url)
+
+                if response.status_code == 200:
+                    final_url = str(response.url).rstrip("/")
+                    logger.debug(f"URL verification: {url} -> {final_url}")
+                    self.url_verification_cache[url] = final_url
+                    return final_url
+                else:
+                    logger.warning(
+                        f"URL verification failed for {url}: HTTP {response.status_code}"
+                    )
+                    self.url_verification_cache[url] = None
+                    return None
+
+        except Exception as e:
+            logger.warning(f"URL verification error for {url}: {e}")
+            self.url_verification_cache[url] = None
+            return None
 
     def get_stats(self) -> dict[str, int]:
         """Get statistics about the resolver"""
