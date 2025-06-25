@@ -1275,10 +1275,10 @@ class CustomHelpCommand(click.Command):
 @click.option("--dry-run", is_flag=True, help="Show what would be scraped without downloading")
 @click.option("--verbose", "-V", is_flag=True, help="Enable verbose output")
 @click.option(
-    "--include-resources",
+    "--exclude-resources",
     is_flag=True,
     default=False,
-    help="Include /resources/ pages in addition to /docs/",
+    help="Exclude /resources/ pages (only fetch /docs/)",
 )
 @click.option("--no-lint", is_flag=True, help="Skip markdown linting/auto-fixing phase")
 @click.option("--no-h1-headings", is_flag=True, help="Disable H1 headings in markdown output")
@@ -1295,7 +1295,7 @@ def scrape(
     resume: bool,
     dry_run: bool,
     verbose: bool,
-    include_resources: bool,
+    exclude_resources: bool,
     no_lint: bool,
     no_h1_headings: bool,
     create_redirect_stubs: bool,
@@ -1341,7 +1341,7 @@ def scrape(
     console.print(
         f"[dim]Workers: {workers or env_config['ATLAS_MD_WORKERS']} | Delay: {delay or env_config['ATLAS_MD_REQUEST_DELAY']}s[/dim]"
     )
-    console.print(f"[dim]Include resources: {include_resources}[/dim]")
+    console.print(f"[dim]Include resources: {not exclude_resources}[/dim]")
     if no_h1_headings or env_config["ATLAS_MD_NO_H1_HEADINGS"]:
         console.print("[dim]H1 headings: Disabled[/dim]")
     console.print()
@@ -1364,7 +1364,7 @@ def scrape(
         "resume": resume,
         "dry_run": dry_run,
         "verbose": verbose,
-        "include_resources": include_resources,
+        "include_resources": not exclude_resources,
         "lint": not no_lint,
         "no_h1_headings": no_h1_headings or env_config["ATLAS_MD_NO_H1_HEADINGS"],
         "create_redirect_stubs": create_redirect_stubs,
