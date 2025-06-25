@@ -2,6 +2,30 @@
 
 <!-- version list -->
 
+## v0.3.0 (2025-06-25)
+
+### Bug Fixes
+
+- Add URL verification to resolve broken wikilinks and cache results
+  ([`ed0279c`](https://github.com/jsade/atlas-markdown/commit/ed0279c21c907c815e1ce2fb2b9056dbf512368b))
+
+- Broken wikilinks handling.
+  ([`17f9b3d`](https://github.com/jsade/atlas-markdown/commit/17f9b3d6fe685739da0a9892233930bf5d18e208))
+
+- Partial fix to broken wikilink handling and add relative path support in link resolver.
+  ([`1e25eec`](https://github.com/jsade/atlas-markdown/commit/1e25eece5bf552829a6c87f9fe249ac14e6adf00))
+
+### Documentation
+
+- Added wikilinks devnotes and couple proposals
+  ([`17f9b3d`](https://github.com/jsade/atlas-markdown/commit/17f9b3d6fe685739da0a9892233930bf5d18e208))
+
+### Features
+
+- Enhance LinkResolver to support redirect handling and add tests for redirect functionality
+  ([`ab17f11`](https://github.com/jsade/atlas-markdown/commit/ab17f11ec58949230b50e0aedf237cb893d4db6f))
+
+
 ## v0.2.1 (2025-06-24)
 
 ### Bug Fixes
