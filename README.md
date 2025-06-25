@@ -278,8 +278,9 @@ atlas-markdown <options> <arguments>
 | `--resume` | | Resume from previous state | `False` |
 | `--dry-run` | | Preview without downloading | `False` |
 | `--no-lint` | | Skip markdown linting phase | `False` |
-| `--exclude-resources` | | Exclude /resources/ pages (only fetch /docs/) | `False` |
+| `--exclude-resources` | | Exclude `/resources/` pages (only fetch `/docs/`) | `False` |
 | `--create-redirect-stubs` | | Create stub files for redirected URLs | `False` |
+| `--no-h1-headings` | | Create stub files for redirected URLs | `False` |
 | `--verbose` | `-V` | Enable verbose output | `False` |
 | `--version` | `-v` | Print version and exit |  |
 

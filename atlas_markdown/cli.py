@@ -1303,6 +1303,8 @@ def scrape(
     """Download and convert Atlassian documentation to Markdown
 
     The base URL for the Atlassian product documentation can be specified via:
+
+    \b
     - Command-line option: --base-url / -u
     - Environment variable: ATLAS_MD_BASE_URL (if not provided via command line)"""
 
