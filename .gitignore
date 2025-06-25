@@ -42,6 +42,7 @@ atlas_markdown/_version.py
 
 # Environment variables
 .env
+.env.development
 
 # Logging
 logs/

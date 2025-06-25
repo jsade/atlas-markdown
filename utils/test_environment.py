@@ -92,7 +92,7 @@ def test_project_structure() -> bool:
         ("pyproject.toml", "Project configuration"),
         ("requirements.txt", "Python dependencies"),
         ("scraper.py", "Main scraper script"),
-        (".env.example", "Environment template"),
+        (".env.development.example", "Development environment template"),
     ]
 
     all_ok = True
@@ -113,21 +113,23 @@ def test_environment_file() -> bool:
 
     parent_dir = Path(__file__).parent.parent
     env_file = parent_dir / ".env"
-    env_example = parent_dir / ".env.example"
+    env_dev_example = parent_dir / ".env.development.example"
 
-    # First check system environment variables
-    required_vars = ["BASE_URL"]
-    optional_vars = ["OUTPUT_DIR", "WORKERS", "REQUEST_DELAY"]
+    # Check system environment variables
+    required_vars = ["ATLAS_MD_BASE_URL"]
+    optional_vars = ["ATLAS_MD_OUTPUT_DIR", "ATLAS_MD_WORKERS", "ATLAS_MD_REQUEST_DELAY"]
 
-    # Check if BASE_URL is in system environment
-    if "BASE_URL" in os.environ:
-        print("✓ BASE_URL found in system environment variables")
+    # Check if ATLAS_MD_BASE_URL is in system environment
+    if "ATLAS_MD_BASE_URL" in os.environ:
+        print("✓ ATLAS_MD_BASE_URL found in system environment variables")
         config = {var: os.environ.get(var, "") for var in required_vars + optional_vars}
         source = "environment"
     elif env_file.exists():
         print("⚠ Using .env file (Note: Consider setting shell environment variables instead)")
         print("  For example, add to ~/.zshrc or ~/.bashrc:")
-        print('  export BASE_URL="https://support.atlassian.com/jira-service-management-cloud/"')
+        print(
+            '  export ATLAS_MD_BASE_URL="https://support.atlassian.com/jira-service-management-cloud/"'
+        )
         # Check for required variables
         try:
             from dotenv import dotenv_values
@@ -137,7 +139,16 @@ def test_environment_file() -> bool:
             config = {k: v or "" for k, v in raw_config.items()}  # Convert None to empty string
             source = ".env file"
 
-            missing = [var for var in required_vars if var not in config or not config[var]]
+            # Check for ATLAS_MD_ prefixed variables in .env file
+            atlas_config = {}
+            for key, value in config.items():
+                if key.startswith("ATLAS_MD_"):
+                    atlas_config[key] = value
+
+            missing = [
+                var for var in required_vars if var not in atlas_config or not atlas_config.get(var)
+            ]
+            config = atlas_config  # Use only ATLAS_MD_ prefixed variables
             if missing:
                 print(f"⚠ Missing required variables in {source}: {', '.join(missing)}")
                 return False
@@ -145,40 +156,45 @@ def test_environment_file() -> bool:
             print(f"✗ Error reading .env file: {e}")
             return False
     else:
-        print("✗ BASE_URL environment variable not found")
-        print("\n  Set BASE_URL in your shell configuration:")
+        print("✗ ATLAS_MD_BASE_URL environment variable not found")
+        print("\n  Set ATLAS_MD_BASE_URL in your shell configuration:")
         print("  For zsh (~/.zshrc):")
-        print('    export BASE_URL="https://support.atlassian.com/jira-service-management-cloud/"')
+        print(
+            '    export ATLAS_MD_BASE_URL="https://support.atlassian.com/jira-service-management-cloud/"'
+        )
         print("  For bash (~/.bashrc):")
-        print('    export BASE_URL="https://support.atlassian.com/jira-service-management-cloud/"')
+        print(
+            '    export ATLAS_MD_BASE_URL="https://support.atlassian.com/jira-service-management-cloud/"'
+        )
         print("\n  Then reload your shell configuration:")
         print("    source ~/.zshrc  # or ~/.bashrc")
 
-        if env_example.exists():
+        env_dev_example = parent_dir / ".env.development.example"
+        if env_dev_example.exists():
             print("\n  Alternatively, for local development only:")
-            print("    cp .env.example .env")
+            print("    cp .env.development.example .env")
         return False
 
     # Now we have config from either source
     print(f"✓ Required environment variables present (from {source})")
 
-    # Strict validation for BASE_URL
-    base_url_value = config.get("BASE_URL", "")
+    # Strict validation for ATLAS_MD_BASE_URL
+    base_url_value = config.get("ATLAS_MD_BASE_URL", "")
     base_url = base_url_value.strip().rstrip("/") if base_url_value else ""
     required_prefix = "https://support.atlassian.com/"
 
     if not base_url:
-        print("⚠ BASE_URL is empty")
+        print("⚠ ATLAS_MD_BASE_URL is empty")
         return False
 
     if not base_url.startswith(required_prefix):
-        print(f"⚠ BASE_URL must start with '{required_prefix}' (got '{base_url}')")
-        print("  This scraper is designed specifically for Atlassian support documentation.")
+        print(f"⚠ ATLAS_MD_BASE_URL must start with '{required_prefix}' (got '{base_url}')")
+        print("  This tool is designed specifically for Atlassian support documentation.")
         return False
 
     # Check if it has an endpoint after the base
     if base_url == required_prefix.rstrip("/"):
-        print("⚠ BASE_URL must include a specific product endpoint")
+        print("⚠ ATLAS_MD_BASE_URL must include a specific product endpoint")
         print("  Examples:")
         print(f"    - {required_prefix}jira-service-management-cloud")
         print(f"    - {required_prefix}jira-software-cloud")
@@ -200,7 +216,7 @@ def test_environment_file() -> bool:
     if endpoint not in valid_endpoints:
         print(f"⚠ Warning: '{endpoint}' is not a known Atlassian product endpoint")
         print(f"  Known endpoints: {', '.join(valid_endpoints)}")
-        print("  The scraper may not work correctly with unknown endpoints.")
+        print("  This tool may not work correctly with unknown endpoints.")
 
     return True
 

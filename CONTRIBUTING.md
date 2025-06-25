@@ -114,7 +114,7 @@ source venv/bin/activate
 
 # 4. Configure your scraping target
 # Add to your shell profile (~/.zshrc, ~/.bashrc, etc.):
-export BASE_URL="https://support.atlassian.com/jira-service-management-cloud/"
+export ATLAS_MD_BASE_URL="https://support.atlassian.com/jira-service-management-cloud/"
 
 # 5. Test the environment
 python utils/test_environment.py
@@ -143,11 +143,12 @@ pre-commit install
 # 4. Install browser for web scraping
 playwright install chromium
 
-# 5. Configure your scraping target
-# Add to your shell profile (~/.zshrc, ~/.bashrc, etc.):
-export BASE_URL="https://support.atlassian.com/jira-service-management-cloud/"
+# 5. Run the tool (changes to source code take effect immediately)
+# Option A: Using command-line argument
+atlas-markdown -u "https://support.atlassian.com/confluence-cloud" --help
 
-# 6. Run the tool (changes to source code take effect immediately)
+# Option B: Using environment variable
+export ATLAS_MD_BASE_URL="https://support.atlassian.com/confluence-cloud"
 atlas-markdown --help
 ```
 

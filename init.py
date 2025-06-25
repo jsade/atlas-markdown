@@ -301,10 +301,9 @@ omit = ["tests/*", "venv/*"]
         with open("pyproject.toml", "w") as f:
             f.write(pyproject_content)
 
-    # Check if .env exists, warn if missing
+    # Note: .env file is not required - environment variables should be set in shell config
     if not Path(".env").exists():
-        print_info(".env file not found")
-        print_info("You will need to create it from .env.example before continuing.")
+        print_info(".env file not found (this is normal - use shell environment variables)")
 
     # Pre-commit configuration
     if Path(".pre-commit-config.yaml").exists():
@@ -401,9 +400,15 @@ def print_next_steps() -> None:
     print(f"{Colors.BOLD}1. Activate the virtual environment:{Colors.END}")
     print(f"   {Colors.GREEN}source venv/bin/activate{Colors.END}\n")
 
-    print(f"{Colors.BOLD}2. Copy and configure environment variables:{Colors.END}")
-    print(f"   {Colors.GREEN}cp .env.example .env{Colors.END}")
-    print(f"   {Colors.GREEN}# Edit .env with your settings{Colors.END}\n")
+    print(f"{Colors.BOLD}2. Set REQUIRED environment variable:{Colors.END}")
+    print(f"   {Colors.GREEN}# Choose which Atlassian product to fetch:{Colors.END}")
+    print(
+        f'   {Colors.GREEN}export ATLAS_MD_BASE_URL="https://support.atlassian.com/confluence-cloud"{Colors.END}'
+    )
+    print(
+        f"   {Colors.GREEN}# Valid options: jira-software-cloud, confluence-cloud, trello, etc.{Colors.END}"
+    )
+    print(f"   {Colors.GREEN}# Add to ~/.zshrc or ~/.bashrc and run: source ~/.zshrc{Colors.END}\n")
 
     print(f"{Colors.BOLD}3. Run Atlas Markdown:{Colors.END}")
     print(f"   {Colors.GREEN}./run.sh{Colors.END}")

@@ -9,46 +9,43 @@
 </picture>
 
 
-<div align="center">
-    <picture>
+<div align="center" style="margin-bottom:10px">
+    <picture style="margin-right:5px">
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/Apps-dark_Confluence_logo_brand_RGB.svg" height="15" />
         <source media="(prefers-color-scheme: light)" srcset="docs/images/Apps-light_Confluence_Logo_brand_RGB.svg" height="15" />
         <img src="docs/images/Apps-light_Confluence_Logo_brand_RGB.svg" alt="Confluence" height="15" />
     </picture>
-    <picture>
+    <picture style="margin-right:5px">
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/Apps-dark_Jira_logo_brand_RGB.svg" height="15" />
         <source media="(prefers-color-scheme: light)" srcset="docs/images/Apps-light_Jira_Logo_brand_RGB.svg" height="15" />
         <img src="docs/images/Apps-light_Jira_Logo_brand_RGB.svg" alt="Jira" height="15" />
     </picture>
-    <picture>
+    <picture style="margin-right:5px">
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/Apps-dark_Jira-Service-Management_logo_brand_RGB.svg" height="15" />
         <source media="(prefers-color-scheme: light)" srcset="docs/images/Apps-light_Jira-Service-Management_Logo_brand_RGB.svg" alt="Jira Service Management" height="15" />
         <img src="docs/images/Apps-light_Jira-Service-Management_Logo_brand_RGB.svg" alt="Jira Service Management" height="15" />
     </picture>
-    <picture>
+    <picture style="margin-right:5px">
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/Apps-dark_Trello_logo_brand_RGB.svg" height="15" />
         <source media="(prefers-color-scheme: light)" srcset="docs/images/Apps-light_Trello_Logo_brand_RGB.svg" height="15" />
         <img src="docs/images/Apps-light_Trello_Logo_brand_RGB.svg" alt="Trello" height="15" />
     </picture>
-    <picture>
+    <picture style="margin-right:5px">
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/Apps-dark_Bitbucket_logo_brand_RGB.svg" height="15" />
         <source media="(prefers-color-scheme: light)" srcset="docs/images/Apps-light_Bitbucket_Logo_brand_RGB.svg" height="15" />
         <img src="docs/images/Apps-light_Bitbucket_Logo_brand_RGB.svg" alt="Bitbucket" height="15" />
     </picture>
-    <picture>
+    <picture style="margin-right:5px">
         <source media="(prefers-color-scheme: dark)" srcset="docs/images/Apps-dark_Statuspage_logo_brand_RGB.svg" height="15" />
         <source media="(prefers-color-scheme: light)" srcset="docs/images/Apps-light_Statuspage_logo_brand_RGB.svg" height="15" />
         <img src="docs/images/Apps-light_Statuspage_logo_brand_RGB.svg" alt="Statuspage" height="15" />
     </picture>
 </div>
 
-A robust command-line tool for transforming selected <strong><a href="https://support.atlassian.com">Atlassian online product documentation</a></strong> into a clean, organized Markdown site on your local filesystem. Built specifically for use with <strong><a href="https://obsidian.md/)">Obsidian</a></strong>, though any markdown viewer will work.
 
-<br/>
+⭐ **A robust command-line tool for transforming [Atlassian online product documentation](https://support.atlassian.com) into a clean, organized Markdown site on your local filesystem.**
 
-> [!CAUTION]
-> Pre-release, currently in testing phase. Iterative changes to be expected.
-
+Built specifically for use with [Obsidian](https://obsidian.md/), though any markdown viewer will work.
 
 ## Features
 
@@ -66,6 +63,9 @@ A robust command-line tool for transforming selected <strong><a href="https://su
 
 ## Quick Start
 
+> [!CAUTION]
+> Pre-release, currently in testing phase. Iterative changes to be expected.
+
 Download the wheel file from the [latest release](https://github.com/jsade/atlas-markdown/releases/latest) (e.g., `atlas_markdown-0.1.1-py3-none-any.whl`).
 
 ```bash
@@ -79,13 +79,23 @@ pip install atlas_markdown-*.whl
 # 3. Install browser for web scraping
 playwright install chromium
 
-# 4. Configure your scraping target
-# Add to your shell profile (~/.zshrc, ~/.bashrc, etc.):
-export BASE_URL="https://support.atlassian.com/jira-service-management-cloud/"
-# See Configuration section below for all environment variables
+# 4. Run the tool (choose one of the following methods):
 
-# 5. Run the tool
-atlas-markdown --help
+# Option A: Using command-line argument
+atlas-markdown -u "https://support.atlassian.com/confluence-cloud"
+
+# Option B: Using environment variable
+export ATLAS_MD_BASE_URL="https://support.atlassian.com/confluence-cloud"
+atlas-markdown
+
+# Valid product endpoints:
+#   - jira-service-management-cloud
+#   - jira-software-cloud
+#   - confluence-cloud
+#   - jira-work-management
+#   - trello
+#   - bitbucket-cloud
+#   - statuspage
 ```
 
 For development installation options, see [CONTRIBUTING.md](CONTRIBUTING.md#installation-options).
@@ -95,9 +105,9 @@ For development installation options, see [CONTRIBUTING.md](CONTRIBUTING.md#inst
 The script operates in 7 distinct phases:
 
 1. **Discovery** - Extracts page hierarchy from React state or sitemap
-2. **Page Scraping** - Downloads pages using Playwright for JavaScript rendering
+2. **Page Fetching** - Downloads pages using Playwright for JavaScript rendering
 3. **Image Download** - Fetches all referenced images asynchronously
-4. **Retry Failed** - Attempts to re-scrape any failed pages
+4. **Retry Failed** - Attempts to re-fetch any failed pages
 5. **Index Generation** - Creates navigation index of all content
 6. **Link Resolution** - Converts wiki-style links to file references
 7. **Markdown Linting** - Cleans up and standardizes formatting
@@ -186,9 +196,9 @@ output/
 
 ### State Management
 
-The script uses SQLite (`scraper_state.db`) to track:
+The script uses SQLite to track:
 
-- Page scraping status and metadata
+- Page fetching status and metadata
 - Image download progress
 - Failed pages for retry
 - Session information
@@ -264,6 +274,7 @@ atlas-markdown <options> <arguments>
 | `--output` | `-o` | Output directory for documentation | `./output` |
 | `--workers` | `-w` | Number of concurrent workers | `5` |
 | `--delay` | `-d` | Delay between requests (seconds) | `1.5` |
+| `--base-url` | `-u` | Base URL for documentation (overrides env var) | From `ATLAS_MD_BASE_URL` |
 | `--resume` | | Resume from previous state | `False` |
 | `--dry-run` | | Preview without downloading | `False` |
 | `--no-lint` | | Skip markdown linting phase | `False` |
@@ -275,31 +286,89 @@ atlas-markdown <options> <arguments>
 
 ### Configuration
 
-The script uses environment variables for configuration. Add these to your shell profile (`~/.zshrc`, `~/.bashrc`, etc.):
+The script uses environment variables for configuration. All variables should be prefixed with `ATLAS_MD_` to avoid conflicts with other applications.
+
+Add these to your shell profile (`~/.zshrc`, `~/.bashrc`, etc.):
 
 ```bash
-# Base URL (must be a valid Atlassian support URL)
-export BASE_URL="https://support.atlassian.com/jira-service-management-cloud/"
+# REQUIRED: Base URL for the documentation to fetch
+# Must start with "https://support.atlassian.com/" and include a specific product endpoint
+export ATLAS_MD_BASE_URL="https://support.atlassian.com/confluence-cloud"
 
-# Output settings (optional - defaults shown)
-export OUTPUT_DIR="./output"
-export WORKERS="5"
-export REQUEST_DELAY="1.5"
-
-# Safety constraints (optional - defaults shown)
-export MAX_CRAWL_DEPTH="5"
-export MAX_PAGES="1000"
-export MAX_RUNTIME_MINUTES="120"
-export MAX_RETRIES="3"
-
-# Domain restriction controls which URLs the script will follow
-# Options: product (default), any-atlassian, off
-export DOMAIN_RESTRICTION="product"
+# Optional: Override default settings as needed
+export ATLAS_MD_OUTPUT_DIR="./output"    # Where to save documentation
+export ATLAS_MD_WORKERS="5"              # Number of concurrent fetchers
+export ATLAS_MD_REQUEST_DELAY="1.5"      # Seconds between requests
 ```
 
 After adding these variables, reload your shell configuration:
 ```bash
 source ~/.zshrc  # or ~/.bashrc
+```
+
+#### Environment Variable Reference
+
+| Variable | Description | Default | Valid Values |
+|----------|-------------|---------|-------------|
+| **Required Configuration** |
+| `ATLAS_MD_BASE_URL` | The Atlassian documentation URL to fetch. Must include a specific product endpoint. | **Required - No default** | `https://support.atlassian.com/{product}` |
+| **Output Directory** |
+| `ATLAS_MD_OUTPUT_DIR` | Directory where the fetched documentation will be saved | `./output` | Any valid directory path. |
+| **Performance Settings** |
+| `ATLAS_MD_WORKERS` | Number of concurrent scraping workers | `5` | `1-50` (higher = faster but more resource intensive) |
+| `ATLAS_MD_REQUEST_DELAY` | Delay between requests in seconds | `1.5` | `0.1-60` (lower = faster but may trigger rate limits) |
+| `ATLAS_MD_USER_AGENT` | User agent string for HTTP requests | Mozilla/5.0... | Any valid user agent string |
+| **Logging Configuration** |
+| `ATLAS_MD_LOG_LEVEL` | Logging verbosity level | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
+| `ATLAS_MD_LOG_ENABLED` | Enable file logging | `false` | `true`, `false` |
+| `ATLAS_MD_LOG_DIR` | Directory for log files | `logs/` | Any valid directory path |
+| **Safety Constraints** |
+| `ATLAS_MD_MAX_CRAWL_DEPTH` | Maximum depth to follow links from entry point | `5` | `0-10` (0 = unlimited, not recommended) |
+| `ATLAS_MD_MAX_PAGES` | Maximum total pages to fetch | `1500` | `0+` (0 = unlimited, use with caution) |
+| `ATLAS_MD_MAX_RUNTIME_MINUTES` | Maximum runtime in minutes before stopping | `120` | `0+` (0 = unlimited) |
+| `ATLAS_MD_MAX_FILE_SIZE_MB` | Skip files larger than this size | `50` | `1+` MB |
+| `ATLAS_MD_DOMAIN_RESTRICTION` | Control which URLs to follow | `product` | See below |
+| `ATLAS_MD_MAX_RETRIES` | Maximum retry attempts for failed pages | `3` | `0-10` |
+| `ATLAS_MD_MAX_CONSECUTIVE_FAILURES` | Stop after this many consecutive failures | `20` | `5+` |
+| `ATLAS_MD_DRY_RUN_DEFAULT` | Enable dry run mode by default | `false` | `true`, `false` |
+
+#### Domain Restriction Modes
+
+- **`product`** (default) - Only fetch URLs under your specific product. For example, if `ATLAS_MD_BASE_URL` is set to `.../jira-service-management-cloud/`, only URLs starting with that path will be fetched.
+- **`any-atlassian`** - Allow fetching any `support.atlassian.com` URL. Warning: This may result in fetching documentation from other Atlassian products.
+- **`off`** - No domain restrictions (not recommended). The crawler could potentially follow links to external sites.
+
+#### Supported Atlassian Products
+
+- `jira-service-management-cloud`
+- `jira-software-cloud`
+- `confluence-cloud`
+- `jira-work-management`
+- `trello`
+- `bitbucket-cloud`
+- `statuspage`
+
+### Usage Examples
+
+```bash
+# Fetch Confluence documentation using command-line option
+atlas-markdown -u "https://support.atlassian.com/confluence-cloud" -o ./confluence-docs
+
+# Fetch Jira documentation with custom settings
+atlas-markdown -u "https://support.atlassian.com/jira-software-cloud" \
+  --output ./jira-docs \
+  --workers 3 \
+  --delay 2.0
+
+# Resume interrupted fetch
+atlas-markdown --resume
+
+# Dry run to preview what would be fetched
+atlas-markdown -u "https://support.atlassian.com/trello" --dry-run
+
+# Using environment variable instead of command-line option
+export ATLAS_MD_BASE_URL="https://support.atlassian.com/bitbucket-cloud"
+atlas-markdown --output ./bitbucket-docs
 ```
 
 ## Troubleshooting
@@ -308,15 +377,15 @@ source ~/.zshrc  # or ~/.bashrc
 - Run `playwright install chromium` to ensure browser is installed
 
 **"Too many requests" errors**
-- Increase `REQUEST_DELAY` environment variable
-- Reduce `WORKERS` count
+- Increase `ATLAS_MD_REQUEST_DELAY` environment variable
+- Reduce `ATLAS_MD_WORKERS` count
 
 **Out of memory errors**
-- Reduce `WORKERS` count
+- Reduce `ATLAS_MD_WORKERS` count
 - Enable verbose mode to identify memory-heavy pages
 
 **Resume not working**
-- Ensure `scraper_state.db` exists and is not corrupted
+- Ensure `atlas_md_fetch_state.db` exists and is not corrupted
 - Check file permissions on output directory
 
 ## Responsible Use

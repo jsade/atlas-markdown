@@ -40,33 +40,67 @@ load_dotenv()
 console = Console()
 
 
-def validate_environment() -> dict[str, Any]:
-    """Validate required environment variables with robust error handling"""
-    required_vars = {
-        "BASE_URL": "https://support.atlassian.com/jira-service-management-cloud",
-        "OUTPUT_DIR": "./output",
-        "WORKERS": "5",
-        "REQUEST_DELAY": "1.5",
-        "USER_AGENT": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-        "LOG_LEVEL": "INFO",
-        "LOG_ENABLED": "false",
-        "LOG_DIR": "logs/",
+def validate_environment(base_url_override: str | None = None) -> dict[str, Any]:
+    """Validate environment variables and provide defaults
+
+    Args:
+        base_url_override: Optional base URL from command line that overrides env var
+    """
+    # Check for base URL from command line first, then environment variable
+    base_url = base_url_override or os.getenv("ATLAS_MD_BASE_URL", "").strip()
+    if not base_url:
+        console.print("[bold red]Error: Base URL is required but not provided.[/bold red]\n")
+        console.print("Please provide the base URL for the Atlassian product documentation.\n")
+        console.print("[bold]Option 1: Command-line argument[/bold]")
+        console.print(
+            '  [cyan]atlas-markdown -u "https://support.atlassian.com/{product}"[/cyan]\n'
+        )
+        console.print("[bold]Option 2: Environment variable[/bold]")
+        console.print(
+            '  [cyan]export ATLAS_MD_BASE_URL="https://support.atlassian.com/{product}"[/cyan]'
+        )
+        console.print("  [cyan]atlas-markdown[/cyan]\n")
+        console.print("[bold]Valid product endpoints:[/bold]")
+        console.print("  • jira-service-management-cloud")
+        console.print("  • jira-software-cloud")
+        console.print("  • confluence-cloud")
+        console.print("  • jira-work-management")
+        console.print("  • trello")
+        console.print("  • bitbucket-cloud")
+        console.print("  • statuspage\n")
+        console.print("[bold]Example:[/bold]")
+        console.print(
+            '  [cyan]atlas-markdown -u "https://support.atlassian.com/confluence-cloud"[/cyan]\n'
+        )
+        sys.exit(1)
+
+    # Default values for all configuration variables (BASE_URL no longer has a default)
+    default_values = {
+        "ATLAS_MD_BASE_URL": base_url,  # Already validated above
+        "ATLAS_MD_OUTPUT_DIR": "./output",
+        "ATLAS_MD_WORKERS": "5",
+        "ATLAS_MD_REQUEST_DELAY": "1.5",
+        "ATLAS_MD_USER_AGENT": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        "ATLAS_MD_LOG_LEVEL": "INFO",
+        "ATLAS_MD_LOG_ENABLED": "false",
+        "ATLAS_MD_LOG_DIR": "logs/",
         # Safety constraints
-        "MAX_CRAWL_DEPTH": "5",
-        "MAX_PAGES": "1000",
-        "MAX_RUNTIME_MINUTES": "120",
-        "MAX_FILE_SIZE_MB": "50",
-        "DOMAIN_RESTRICTION": "product",
-        "MAX_RETRIES": "3",
-        "MAX_CONSECUTIVE_FAILURES": "20",
-        "DRY_RUN_DEFAULT": "false",
+        "ATLAS_MD_MAX_CRAWL_DEPTH": "5",
+        "ATLAS_MD_MAX_PAGES": "1500",
+        "ATLAS_MD_MAX_RUNTIME_MINUTES": "120",
+        "ATLAS_MD_MAX_FILE_SIZE_MB": "50",
+        "ATLAS_MD_DOMAIN_RESTRICTION": "product",
+        "ATLAS_MD_MAX_RETRIES": "3",
+        "ATLAS_MD_MAX_CONSECUTIVE_FAILURES": "20",
+        "ATLAS_MD_DRY_RUN_DEFAULT": "false",
     }
 
     env_config: dict[str, Any] = {}
     missing_vars = []
     invalid_vars = []
 
-    for var, default in required_vars.items():
+    for var, default in default_values.items():
+        # Environment variables already have ATLAS_MD_ prefix
         str_value = os.getenv(var, default).strip()
         value: Any = str_value
 
@@ -75,7 +109,7 @@ def validate_environment() -> dict[str, Any]:
             continue
 
         # Validate specific variable types
-        if var == "WORKERS":
+        if var == "ATLAS_MD_WORKERS":
             try:
                 int_value = int(str_value)
                 if int_value < 1 or int_value > 50:
@@ -87,7 +121,7 @@ def validate_environment() -> dict[str, Any]:
                 invalid_vars.append(f"{var} must be an integer (got '{str_value}')")
                 value = int(default)
 
-        elif var == "REQUEST_DELAY":
+        elif var == "ATLAS_MD_REQUEST_DELAY":
             try:
                 float_value = float(str_value)
                 if float_value < 0.1 or float_value > 60:
@@ -101,7 +135,7 @@ def validate_environment() -> dict[str, Any]:
                 invalid_vars.append(f"{var} must be a number (got '{str_value}')")
                 value = float(default)
 
-        elif var == "BASE_URL":
+        elif var == "ATLAS_MD_BASE_URL":
             # Strict validation for Atlassian support URLs only
             required_prefix = "https://support.atlassian.com/"
 
@@ -112,7 +146,7 @@ def validate_environment() -> dict[str, Any]:
             if not value.startswith(required_prefix):
                 invalid_vars.append(
                     f"{var} must start with '{required_prefix}' (got '{value}')\n"
-                    f"      This scraper is designed specifically for Atlassian support documentation."
+                    f"      This crawler is designed specifically for Atlassian support documentation."
                 )
                 value = default
 
@@ -129,6 +163,7 @@ def validate_environment() -> dict[str, Any]:
                 value = default
 
             # Additional validation for known valid endpoints
+            # TODO: These should be moved to a config file or constants
             valid_endpoints = [
                 "jira-service-management-cloud",
                 "jira-software-cloud",
@@ -151,7 +186,7 @@ def validate_environment() -> dict[str, Any]:
                     f"[yellow]The scraper may not work correctly with unknown endpoints.[/yellow]"
                 )
 
-        elif var == "LOG_LEVEL":
+        elif var == "ATLAS_MD_LOG_LEVEL":
             valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
             if str_value.upper() not in valid_levels:
                 invalid_vars.append(f"{var} must be one of {valid_levels} (got '{str_value}')")
@@ -160,12 +195,12 @@ def validate_environment() -> dict[str, Any]:
                 value = str_value.upper()
 
         elif var in [
-            "MAX_CRAWL_DEPTH",
-            "MAX_PAGES",
-            "MAX_RUNTIME_MINUTES",
-            "MAX_FILE_SIZE_MB",
-            "MAX_RETRIES",
-            "MAX_CONSECUTIVE_FAILURES",
+            "ATLAS_MD_MAX_CRAWL_DEPTH",
+            "ATLAS_MD_MAX_PAGES",
+            "ATLAS_MD_MAX_RUNTIME_MINUTES",
+            "ATLAS_MD_MAX_FILE_SIZE_MB",
+            "ATLAS_MD_MAX_RETRIES",
+            "ATLAS_MD_MAX_CONSECUTIVE_FAILURES",
         ]:
             try:
                 int_value = int(str_value)
@@ -176,15 +211,15 @@ def validate_environment() -> dict[str, Any]:
                     value = int_value
 
                     # Specific range validations
-                    if var == "MAX_CRAWL_DEPTH" and int_value > 10:
+                    if var == "ATLAS_MD_MAX_CRAWL_DEPTH" and int_value > 10:
                         invalid_vars.append(
                             f"{var} should not exceed 10 for safety (got {int_value})"
                         )
                         value = int(default)
-                    elif var == "MAX_RETRIES" and int_value > 10:
+                    elif var == "ATLAS_MD_MAX_RETRIES" and int_value > 10:
                         invalid_vars.append(f"{var} should not exceed 10 (got {int_value})")
                         value = int(default)
-                    elif var == "MAX_CONSECUTIVE_FAILURES" and int_value < 5:
+                    elif var == "ATLAS_MD_MAX_CONSECUTIVE_FAILURES" and int_value < 5:
                         invalid_vars.append(f"{var} should be at least 5 (got {int_value})")
                         value = int(default)
 
@@ -192,7 +227,7 @@ def validate_environment() -> dict[str, Any]:
                 invalid_vars.append(f"{var} must be an integer (got '{str_value}')")
                 value = int(default)
 
-        elif var == "DOMAIN_RESTRICTION":
+        elif var == "ATLAS_MD_DOMAIN_RESTRICTION":
             valid_modes = ["product", "any-atlassian", "off"]
             # Handle legacy values
             if str_value == "strict":
@@ -206,20 +241,21 @@ def validate_environment() -> dict[str, Any]:
                 invalid_vars.append(f"{var} must be one of {valid_modes} (got '{value}')")
                 value = default
 
-        elif var == "DRY_RUN_DEFAULT":
+        elif var == "ATLAS_MD_DRY_RUN_DEFAULT":
             if str_value.lower() not in ["true", "false"]:
                 invalid_vars.append(f"{var} must be 'true' or 'false' (got '{str_value}')")
                 value = default
             else:
                 value = str_value.lower() == "true"
 
-        elif var == "LOG_ENABLED":
+        elif var == "ATLAS_MD_LOG_ENABLED":
             if str_value.lower() not in ["true", "false"]:
                 invalid_vars.append(f"{var} must be 'true' or 'false' (got '{str_value}')")
                 value = default
             else:
                 value = str_value.lower() == "true"
 
+        # Store with full name
         env_config[var] = value
 
     # Report issues
@@ -229,19 +265,17 @@ def validate_environment() -> dict[str, Any]:
         if missing_vars:
             console.print("\n[yellow]Missing environment variables (using defaults):[/yellow]")
             for var in missing_vars:
-                console.print(f"  - {var} = {required_vars[var]}")
+                console.print(f"  - {var} = {default_values[var]}")
 
         if invalid_vars:
             console.print("\n[red]Invalid environment variables:[/red]")
             for issue in invalid_vars:
                 console.print(f"  - {issue}")
 
-        console.print("\n[dim]Set environment variables in your shell configuration:[/dim]")
-        console.print("[dim]For zsh (~/.zshrc) or bash (~/.bashrc):[/dim]")
-        console.print(
-            '[dim]export BASE_URL="https://support.atlassian.com/jira-service-management-cloud/"[/dim]'
-        )
-        console.print("[dim]Then run: source ~/.zshrc  # or ~/.bashrc[/dim]\n")
+        if "ATLAS_MD_BASE_URL" not in missing_vars:  # Only show this if BASE_URL isn't the issue
+            console.print("\n[dim]Set environment variables in your shell configuration:[/dim]")
+            console.print("[dim]For zsh (~/.zshrc) or bash (~/.bashrc):[/dim]")
+            console.print("[dim]Then run: source ~/.zshrc  # or ~/.bashrc[/dim]\n")
 
     return env_config
 
@@ -253,15 +287,15 @@ def setup_logging(verbose: bool, env_config: dict[str, Any]) -> None:
     handlers: list[logging.Handler] = [RichHandler(console=console, rich_tracebacks=True)]
 
     # Add file handler if logging is enabled
-    if env_config.get("LOG_ENABLED", False):
-        log_dir = Path(env_config.get("LOG_DIR", "logs/"))
+    if env_config.get("ATLAS_MD_LOG_ENABLED", False):
+        log_dir = Path(env_config.get("ATLAS_MD_LOG_DIR", "logs/"))
         log_dir.mkdir(exist_ok=True)
 
         # Create timestamped log filename
         from datetime import datetime
 
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        log_file = log_dir / f"scraper_{timestamp}.log"
+        log_file = log_dir / f"atlas_md_fetch_{timestamp}.log"
 
         # Create file handler
         file_handler = logging.FileHandler(log_file, encoding="utf-8")
@@ -294,7 +328,7 @@ class DocumentationScraper(ThrottledScraper):
         # Initialize configuration
         self.config = config
         self.env_config = env_config
-        self.base_url = env_config["BASE_URL"]
+        self.base_url = env_config["ATLAS_MD_BASE_URL"]
         self.entry_point = f"{self.base_url}/resources/"
 
         # Create output directory if it doesn't exist
@@ -303,7 +337,9 @@ class DocumentationScraper(ThrottledScraper):
 
         # Initialize rate limiter
         rate_limiter = RateLimiter(rate=1.0 / config["delay"], burst=config["workers"])
-        retry_config = RetryConfig(max_attempts=env_config["MAX_RETRIES"], initial_delay=2.0)
+        retry_config = RetryConfig(
+            max_attempts=env_config["ATLAS_MD_MAX_RETRIES"], initial_delay=2.0
+        )
         super().__init__(rate_limiter, retry_config)
 
         # Initialize components
@@ -319,13 +355,13 @@ class DocumentationScraper(ThrottledScraper):
         self.failed_pages_count = 0
 
         # Safety constraints from environment
-        self.max_consecutive_failures = env_config["MAX_CONSECUTIVE_FAILURES"]
-        self.max_retry_attempts = env_config["MAX_RETRIES"]
-        self.max_crawl_depth = env_config["MAX_CRAWL_DEPTH"]
-        self.max_pages = env_config["MAX_PAGES"]
-        self.max_runtime_minutes = env_config["MAX_RUNTIME_MINUTES"]
-        self.max_file_size_mb = env_config["MAX_FILE_SIZE_MB"]
-        self.domain_restriction = env_config["DOMAIN_RESTRICTION"]
+        self.max_consecutive_failures = env_config["ATLAS_MD_MAX_CONSECUTIVE_FAILURES"]
+        self.max_retry_attempts = env_config["ATLAS_MD_MAX_RETRIES"]
+        self.max_crawl_depth = env_config["ATLAS_MD_MAX_CRAWL_DEPTH"]
+        self.max_pages = env_config["ATLAS_MD_MAX_PAGES"]
+        self.max_runtime_minutes = env_config["ATLAS_MD_MAX_RUNTIME_MINUTES"]
+        self.max_file_size_mb = env_config["ATLAS_MD_MAX_FILE_SIZE_MB"]
+        self.domain_restriction = env_config["ATLAS_MD_DOMAIN_RESTRICTION"]
 
         self.retry_delay_minutes = 5
         self.site_hierarchy: dict[str, Any] | None = None  # Will be populated from initial state
@@ -1203,21 +1239,27 @@ class CustomHelpCommand(click.Command):
     "--output",
     "-o",
     default=None,
-    help="Output directory (default: from env var OUTPUT_DIR or ./output)",
+    help="Output directory (default: from env var ATLAS_MD_OUTPUT_DIR or ./output)",
 )
 @click.option(
     "--workers",
     "-w",
     default=None,
     type=int,
-    help="Number of concurrent workers (default: from env var WORKERS or 5)",
+    help="Number of concurrent workers (default: from env var ATLAS_MD_WORKERS or 5)",
 )
 @click.option(
     "--delay",
     "-d",
     default=None,
     type=float,
-    help="Delay between requests in seconds (default: from env var REQUEST_DELAY or 1.5)",
+    help="Delay between requests in seconds (default: from env var ATLAS_MD_REQUEST_DELAY or 1.5)",
+)
+@click.option(
+    "--base-url",
+    "-u",
+    default=None,
+    help="Base URL for Atlassian documentation (overrides ATLAS_MD_BASE_URL env var)",
 )
 @click.option("--resume", is_flag=True, help="Resume from previous state")
 @click.option("--dry-run", is_flag=True, help="Show what would be scraped without downloading")
@@ -1238,6 +1280,7 @@ def scrape(
     output: str | None,
     workers: int | None,
     delay: float | None,
+    base_url: str | None,
     resume: bool,
     dry_run: bool,
     verbose: bool,
@@ -1245,10 +1288,14 @@ def scrape(
     no_lint: bool,
     create_redirect_stubs: bool,
 ) -> None:
-    """Download and convert Atlassian documentation to Markdown"""
+    """Download and convert Atlassian documentation to Markdown
 
-    # Validate environment first
-    env_config = validate_environment()
+    The base URL for the Atlassian product documentation can be specified via:
+    - Command-line option: --base-url / -u
+    - Environment variable: ATLAS_MD_BASE_URL (if not provided via command line)"""
+
+    # Validate environment first, passing command-line base_url if provided
+    env_config = validate_environment(base_url)
 
     # Check if running with no explicit options (using defaults)
     # sys.argv[1:] will be empty or only contain the command name
@@ -1261,8 +1308,10 @@ def scrape(
         console.print(f"[bold blue]Atlas Markdown[/bold blue] version {__version__}")
 
         # Print scraping target and output directory
-        console.print(f"[bold]Scraping target:[/bold] {env_config['BASE_URL']}")
-        console.print(f"[bold]Output directory:[/bold] {output or env_config['OUTPUT_DIR']}")
+        console.print(f"[bold]Scraping target:[/bold] {env_config['ATLAS_MD_BASE_URL']}")
+        console.print(
+            f"[bold]Output directory:[/bold] {output or env_config['ATLAS_MD_OUTPUT_DIR']}"
+        )
 
         # Ask for confirmation
         # console.print("\n[yellow]No options provided. Using default configuration.[/yellow]")
@@ -1271,14 +1320,14 @@ def scrape(
             sys.exit(0)
 
     # Setup logging with configured level
-    setup_logging(verbose or env_config["LOG_LEVEL"] == "DEBUG", env_config)
+    setup_logging(verbose or env_config["ATLAS_MD_LOG_LEVEL"] == "DEBUG", env_config)
 
     # Show banner
     console.print("\n[bold blue]Atlas Markdown[/bold blue]")
-    console.print(f"[dim]Base URL: {env_config['BASE_URL']}[/dim]")
-    console.print(f"[dim]Output directory: {output or env_config['OUTPUT_DIR']}[/dim]")
+    console.print(f"[dim]Base URL: {env_config['ATLAS_MD_BASE_URL']}[/dim]")
+    console.print(f"[dim]Output directory: {output or env_config['ATLAS_MD_OUTPUT_DIR']}[/dim]")
     console.print(
-        f"[dim]Workers: {workers or env_config['WORKERS']} | Delay: {delay or env_config['REQUEST_DELAY']}s[/dim]"
+        f"[dim]Workers: {workers or env_config['ATLAS_MD_WORKERS']} | Delay: {delay or env_config['ATLAS_MD_REQUEST_DELAY']}s[/dim]"
     )
     console.print(f"[dim]Include resources: {include_resources}[/dim]\n")
 
@@ -1287,16 +1336,16 @@ def scrape(
 
     # Create configuration, using environment defaults if not specified
     # Apply DRY_RUN_DEFAULT if dry_run not explicitly set
-    if not dry_run and env_config["DRY_RUN_DEFAULT"]:
+    if not dry_run and env_config["ATLAS_MD_DRY_RUN_DEFAULT"]:
         console.print(
             "[yellow]Note: DRY_RUN_DEFAULT environment variable is enabled. Use --dry-run=false to override.[/yellow]\n"
         )
         dry_run = True
 
     config = {
-        "output": output or env_config["OUTPUT_DIR"],
-        "workers": workers or env_config["WORKERS"],
-        "delay": delay or env_config["REQUEST_DELAY"],
+        "output": output or env_config["ATLAS_MD_OUTPUT_DIR"],
+        "workers": workers or env_config["ATLAS_MD_WORKERS"],
+        "delay": delay or env_config["ATLAS_MD_REQUEST_DELAY"],
         "resume": resume,
         "dry_run": dry_run,
         "verbose": verbose,

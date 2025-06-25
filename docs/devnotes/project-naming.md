@@ -2,7 +2,7 @@
 
 ## Overview
 
-Atlas Markdown is a Python-based tool that downloads and converts Atlassian product documentation (Jira, Confluence, Trello, Bitbucket, Statuspage) into clean Markdown files optimized for tools like Obsidian.
+Atlas Markdown is a Python-based tool that downloads and converts Atlassian product documentation (Jira, Confluence, Trello, Bitbucket, Statuspage) into clean markdown files optimized for tools like Obsidian.
 
 ## Name Reasoning
 
@@ -68,7 +68,7 @@ To begin using Atlas Markdown, first install it via pip...
 
 ### Logging & Output
 ```
-[Atlas Markdown] Starting documentation scrape...
+[Atlas Markdown] Starting documentation fetch...
 [Atlas Markdown] Processing page 1 of 500: Getting Started
 [Atlas Markdown] Successfully converted 500 pages in 12 minutes
 ```
@@ -96,5 +96,10 @@ description = "Atlas Markdown - Convert Atlassian documentation to Markdown"
 - Always capitalize as "Atlas Markdown" in prose
 - Use `atlas-markdown` for package names and commands (lowercase, hyphenated)
 - Use `atlas_markdown` for Python module names (lowercase, underscored)
-- When space is limited, "Atlas Md" is an acceptable abbreviation
-- Never use just "Atlas" alone due to naming conflicts
+- When space is limited, "Atlas Md" is an acceptable abbreviation.
+- "ATLAS_MD_" is used as the prefix for environment variables
+- Never use just "Atlas" alone due to naming conflicts and potential confusion
+
+## Other
+
+- Minimize the use of the word 'scrape', 'scraping', or its other forms. Instead, use 'fetch', 'fetching', or alternatively 'crawl', 'crawling'.
