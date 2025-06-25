@@ -2,6 +2,27 @@
 
 <!-- version list -->
 
+## v0.4.0 (2025-06-25)
+
+### Documentation
+
+- Add auto-tagging proposal
+  ([`6206068`](https://github.com/jsade/atlas-markdown/commit/6206068c46c6cd3415b3b9517cb56676372a742d))
+
+- Convert redirect handling proposal to developer guide
+  ([`df0d23e`](https://github.com/jsade/atlas-markdown/commit/df0d23e31d6963dcb07ab89a032f7d4edaa4d2ca))
+
+### Features
+
+- Add support for disabling H1 headings in markdown output
+  ([`6206068`](https://github.com/jsade/atlas-markdown/commit/6206068c46c6cd3415b3b9517cb56676372a742d))
+
+### Refactoring
+
+- Migrate from .env file to prefixed environment variables
+  ([`6047248`](https://github.com/jsade/atlas-markdown/commit/604724824bf6b82f50655be74494098b78a01a13))
+
+
 ## v0.3.0 (2025-06-25)
 
 ### Bug Fixes
