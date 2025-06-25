@@ -93,6 +93,7 @@ def validate_environment(base_url_override: str | None = None) -> dict[str, Any]
         "ATLAS_MD_MAX_RETRIES": "3",
         "ATLAS_MD_MAX_CONSECUTIVE_FAILURES": "20",
         "ATLAS_MD_DRY_RUN_DEFAULT": "false",
+        "ATLAS_MD_NO_H1_HEADINGS": "false",
     }
 
     env_config: dict[str, Any] = {}
@@ -255,6 +256,13 @@ def validate_environment(base_url_override: str | None = None) -> dict[str, Any]
             else:
                 value = str_value.lower() == "true"
 
+        elif var == "ATLAS_MD_NO_H1_HEADINGS":
+            if str_value.lower() not in ["true", "false"]:
+                invalid_vars.append(f"{var} must be 'true' or 'false' (got '{str_value}')")
+                value = default
+            else:
+                value = str_value.lower() == "true"
+
         # Store with full name
         env_config[var] = value
 
@@ -345,7 +353,9 @@ class DocumentationScraper(ThrottledScraper):
         # Initialize components
         self.state_manager = StateManager()
         self.file_manager = FileSystemManager(config["output"], self.base_url)
-        self.parser = ContentParser(self.base_url)
+        self.parser = ContentParser(
+            self.base_url, no_h1_headings=config.get("no_h1_headings", False)
+        )
         self.initial_state_parser = InitialStateParser(self.base_url)
         self.redirect_handler = RedirectHandler()
         self.link_resolver = LinkResolver(self.base_url, self.redirect_handler)
@@ -1271,6 +1281,7 @@ class CustomHelpCommand(click.Command):
     help="Include /resources/ pages in addition to /docs/",
 )
 @click.option("--no-lint", is_flag=True, help="Skip markdown linting/auto-fixing phase")
+@click.option("--no-h1-headings", is_flag=True, help="Disable H1 headings in markdown output")
 @click.option(
     "--create-redirect-stubs",
     is_flag=True,
@@ -1286,6 +1297,7 @@ def scrape(
     verbose: bool,
     include_resources: bool,
     no_lint: bool,
+    no_h1_headings: bool,
     create_redirect_stubs: bool,
 ) -> None:
     """Download and convert Atlassian documentation to Markdown
@@ -1329,7 +1341,10 @@ def scrape(
     console.print(
         f"[dim]Workers: {workers or env_config['ATLAS_MD_WORKERS']} | Delay: {delay or env_config['ATLAS_MD_REQUEST_DELAY']}s[/dim]"
     )
-    console.print(f"[dim]Include resources: {include_resources}[/dim]\n")
+    console.print(f"[dim]Include resources: {include_resources}[/dim]")
+    if no_h1_headings or env_config["ATLAS_MD_NO_H1_HEADINGS"]:
+        console.print("[dim]H1 headings: Disabled[/dim]")
+    console.print()
 
     if dry_run:
         console.print("[yellow]🔍 DRY RUN MODE - No files will be downloaded[/yellow]\n")
@@ -1351,6 +1366,7 @@ def scrape(
         "verbose": verbose,
         "include_resources": include_resources,
         "lint": not no_lint,
+        "no_h1_headings": no_h1_headings or env_config["ATLAS_MD_NO_H1_HEADINGS"],
         "create_redirect_stubs": create_redirect_stubs,
     }
 

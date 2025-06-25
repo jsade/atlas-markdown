@@ -20,10 +20,11 @@ logger = logging.getLogger(__name__)
 class ContentParser:
     """Parses Atlassian documentation pages and converts to Markdown"""
 
-    def __init__(self, base_url: str):
+    def __init__(self, base_url: str, no_h1_headings: bool = False):
         self.base_url = base_url.rstrip("/")
         self.image_urls: set[str] = set()
         self.sibling_parser = SiblingNavigationParser(base_url)
+        self.no_h1_headings = no_h1_headings
 
     async def extract_main_content_from_page(
         self, page: Any, page_url: str
@@ -559,6 +560,11 @@ class ContentParser:
                         f"Removed {removed_count} elements before H1 container in markdown conversion for {page_url}"
                     )
 
+        # Remove H1 tags if no_h1_headings is True
+        if self.no_h1_headings:
+            for h1 in soup.find_all("h1"):
+                h1.decompose()
+
         # Convert panel divs to Obsidian callouts before markdown conversion
         for panel in soup.select("div[data-obsidian-callout]"):
             callout_attr = panel.get("data-obsidian-callout", "info")
@@ -594,8 +600,8 @@ class ContentParser:
         # Custom conversion options - using default tags instead of specifying convert list
         markdown: str = cast(str, md(str(soup), heading_style="ATX", bullets="-", code_language=""))
 
-        # Only add title as H1 if it's not already in the content
-        if title and not soup.find("h1"):
+        # Only add title as H1 if it's not already in the content and no_h1_headings is False
+        if title and not soup.find("h1") and not self.no_h1_headings:
             markdown = f"# {title}\n\n{markdown}"
 
         # Build enhanced frontmatter
@@ -628,6 +634,10 @@ class ContentParser:
 
         # Convert internal links to wikilinks
         markdown = self._convert_to_wikilinks(markdown, page_url)
+
+        # Remove H1 headings if no_h1_headings is True
+        if self.no_h1_headings:
+            markdown = self._remove_h1_headings(markdown)
 
         return markdown
 
@@ -701,6 +711,24 @@ class ContentParser:
         markdown = "\n".join(line.rstrip() for line in markdown.split("\n"))
 
         return markdown
+
+    def _remove_h1_headings(self, markdown: str) -> str:
+        """Remove all H1 headings from markdown"""
+        lines = markdown.split("\n")
+        filtered_lines = []
+
+        for line in lines:
+            # Skip lines that are H1 headings (# at start, but not ##, ###, etc.)
+            if re.match(r"^#\s+", line) and not re.match(r"^#{2,}\s+", line):
+                # Skip this H1 line
+                continue
+            filtered_lines.append(line)
+
+        # Join back and clean up any resulting excessive blank lines
+        result = "\n".join(filtered_lines)
+        result = re.sub(r"\n{3,}", "\n\n", result)
+
+        return result
 
     def _fix_malformed_wikilinks(self, markdown: str, current_page_url: str) -> str:
         """Fix malformed wikilinks with URLs in them"""
