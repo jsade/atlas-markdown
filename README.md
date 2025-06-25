@@ -55,6 +55,7 @@ Built specifically for use with [Obsidian](https://obsidian.md/), though any mar
 - 🎯 **Accurate Content Extraction** - Handles React SPAs and dynamic content with Playwright
 - 📝 **Clean Markdown** - Converts HTML to linted and well-formatted Markdown
 - 🛡️ **Managed Safeguards** - Rate limiting, circuit breakers, and configurable constraints
+- 🏷️ **Auto-Tagging** - Automatically generates hierarchical tags from navigation structure for better organization in Obsidian
 
 ## Requirements
 
@@ -194,6 +195,42 @@ output/
 
 </details>
 
+### Auto-Tagging
+
+Each generated markdown file includes enhanced frontmatter with automatically generated tags based on the page's hierarchical position in the documentation. This helps with organization and navigation in tools like Obsidian.
+
+Example frontmatter:
+```yaml
+---
+url: https://support.atlassian.com/jira-service-management-cloud/docs/manage-users/
+scrape_date: 2025-01-25T10:30:00
+tags:
+  - jira-service-management-cloud
+  - user-management
+atlas_md_version: 0.4.0
+atlas_md_url: https://github.com/jsade/atlas-markdown
+atlas_md_product: jira-service-management-cloud
+atlas_md_category: Administration
+atlas_md_section: User Management
+---
+```
+
+The auto-tagging feature:
+- Intelligently categorizes pages based on content (e.g., user-management, api, security, troubleshooting)
+- Includes the product name as the first tag
+- Generates 2-3 focused tags rather than long page slugs
+- Can be disabled by setting `ATLAS_MD_DISABLE_TAGS=true`
+- Atlas Markdown metadata (`atlas_md_*` fields) are always included regardless of tag settings
+
+Common tag categories:
+- `getting-started` - Overview and introduction pages
+- `administration` - Configuration and settings pages
+- `user-management` - User, team, and permission pages
+- `api` - API reference and integration pages
+- `security` - Authentication and security pages
+- `automation` - Workflow and automation pages
+- `troubleshooting` - Error and problem-solving pages
+
 ### State Management
 
 The script uses SQLite to track:
@@ -280,7 +317,7 @@ atlas-markdown <options> <arguments>
 | `--no-lint` | | Skip markdown linting phase | `False` |
 | `--exclude-resources` | | Exclude `/resources/` pages (only fetch `/docs/`) | `False` |
 | `--create-redirect-stubs` | | Create stub files for redirected URLs | `False` |
-| `--no-h1-headings` | | Create stub files for redirected URLs | `False` |
+| `--no-h1-headings` | | Remove H1 headings from markdown output | `False` |
 | `--verbose` | `-V` | Enable verbose output | `False` |
 | `--version` | `-v` | Print version and exit |  |
 
@@ -332,6 +369,9 @@ source ~/.zshrc  # or ~/.bashrc
 | `ATLAS_MD_MAX_RETRIES` | Maximum retry attempts for failed pages | `3` | `0-10` |
 | `ATLAS_MD_MAX_CONSECUTIVE_FAILURES` | Stop after this many consecutive failures | `20` | `5+` |
 | `ATLAS_MD_DRY_RUN_DEFAULT` | Enable dry run mode by default | `false` | `true`, `false` |
+| **Content Processing** |
+| `ATLAS_MD_NO_H1_HEADINGS` | Remove H1 headings from output | `false` | `true`, `false` |
+| `ATLAS_MD_DISABLE_TAGS` | Disable automatic tag generation | `false` | `true`, `false` |
 
 #### Domain Restriction Modes
 

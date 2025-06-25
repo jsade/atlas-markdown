@@ -94,6 +94,7 @@ def validate_environment(base_url_override: str | None = None) -> dict[str, Any]
         "ATLAS_MD_MAX_CONSECUTIVE_FAILURES": "20",
         "ATLAS_MD_DRY_RUN_DEFAULT": "false",
         "ATLAS_MD_NO_H1_HEADINGS": "false",
+        "ATLAS_MD_DISABLE_TAGS": "false",
     }
 
     env_config: dict[str, Any] = {}
@@ -263,6 +264,13 @@ def validate_environment(base_url_override: str | None = None) -> dict[str, Any]
             else:
                 value = str_value.lower() == "true"
 
+        elif var == "ATLAS_MD_DISABLE_TAGS":
+            if str_value.lower() not in ["true", "false"]:
+                invalid_vars.append(f"{var} must be 'true' or 'false' (got '{str_value}')")
+                value = default
+            else:
+                value = str_value.lower() == "true"
+
         # Store with full name
         env_config[var] = value
 
@@ -338,6 +346,7 @@ class DocumentationScraper(ThrottledScraper):
         self.env_config = env_config
         self.base_url = env_config["ATLAS_MD_BASE_URL"]
         self.entry_point = f"{self.base_url}/resources/"
+        self.config["disable_tags"] = env_config.get("ATLAS_MD_DISABLE_TAGS", False)
 
         # Create output directory if it doesn't exist
         output_dir = Path(config["output"])
@@ -812,7 +821,10 @@ class DocumentationScraper(ThrottledScraper):
                 page_metadata = self.initial_state_parser.get_page_metadata(url)
 
             # Convert to markdown with metadata
-            markdown = self.parser.convert_to_markdown(content_html, url, title, page_metadata)
+            disable_tags = self.config.get("disable_tags", False)
+            markdown = self.parser.convert_to_markdown(
+                content_html, url, title, page_metadata, sibling_info, disable_tags
+            )
 
             # Save to file system with sibling info for proper folder structure
             # Use the final URL (after redirects) for saving content

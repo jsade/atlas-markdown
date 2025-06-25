@@ -6,7 +6,7 @@ import json
 import logging
 import re
 from typing import Any, cast
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import yaml
 from bs4 import BeautifulSoup, Tag
@@ -523,6 +523,8 @@ class ContentParser:
         page_url: str,
         title: str | None = None,
         page_metadata: dict[str, Any] | None = None,
+        sibling_info: dict[str, Any] | None = None,
+        disable_tags: bool = False,
     ) -> str:
         """Convert HTML content to Markdown with enhanced frontmatter"""
         # Parse HTML
@@ -605,7 +607,7 @@ class ContentParser:
             markdown = f"# {title}\n\n{markdown}"
 
         # Build enhanced frontmatter
-        frontmatter = {"url": page_url, "scrape_date": self._get_current_date()}
+        frontmatter: dict[str, Any] = {"url": page_url, "scrape_date": self._get_current_date()}
 
         # Add metadata from initial state if available
         if page_metadata:
@@ -624,6 +626,33 @@ class ContentParser:
         if hasattr(self, "current_page_description") and self.current_page_description:
             if not frontmatter.get("description"):
                 frontmatter["description"] = self.current_page_description
+
+        # Extract product from URL
+        product = self._extract_product_from_url(page_url)
+
+        # Add tags if not disabled
+        if not disable_tags and sibling_info:
+            tags = self._generate_hierarchical_tags(sibling_info, product)
+            if tags:
+                frontmatter["tags"] = tags
+
+        # Always add Atlas Markdown metadata
+        frontmatter["atlas_md_version"] = self._get_atlas_md_version()
+        frontmatter["atlas_md_url"] = "https://github.com/jsade/atlas-markdown"
+        frontmatter["atlas_md_product"] = product
+
+        # Add category and section from sibling info
+        if sibling_info:
+            # Extract category from breadcrumbs
+            if breadcrumb_data := sibling_info.get("breadcrumb_data"):
+                breadcrumbs = breadcrumb_data.get("breadcrumbs", [])
+                # Category is typically the third breadcrumb (after "Atlassian Support" and product)
+                if len(breadcrumbs) > 2:
+                    frontmatter["atlas_md_category"] = breadcrumbs[2].get("name", "")
+
+            # Section from section heading
+            if section := sibling_info.get("section_heading"):
+                frontmatter["atlas_md_section"] = section
 
         # Format frontmatter as YAML
         metadata_str: str = yaml.dump(frontmatter, default_flow_style=False, sort_keys=False)
@@ -849,6 +878,128 @@ class ContentParser:
         from datetime import datetime
 
         return datetime.now().isoformat()
+
+    def _extract_product_from_url(self, url: str) -> str:
+        """Extract product identifier from base URL"""
+        # Parse the URL
+        parsed = urlparse(url)
+        path_parts = parsed.path.strip("/").split("/")
+
+        # If the URL is like https://support.atlassian.com/jira-service-management-cloud/...
+        # The product would be the first path component
+        if path_parts:
+            return path_parts[0]
+
+        # Fallback to extracting from base_url
+        base_parsed = urlparse(self.base_url)
+        base_parts = base_parsed.path.strip("/").split("/")
+        if base_parts:
+            return base_parts[0]
+
+        return "unknown"
+
+    def _normalize_tag(self, text: str) -> str:
+        """Convert text to lowercase hyphenated tag format"""
+        if not text:
+            return ""
+
+        # Convert to lowercase
+        text = text.lower()
+
+        # Replace special characters and spaces with hyphens
+        text = re.sub(r"[^a-z0-9]+", "-", text)
+
+        # Remove leading/trailing hyphens
+        text = text.strip("-")
+
+        # Replace multiple hyphens with single hyphen
+        text = re.sub(r"-+", "-", text)
+
+        return text
+
+    def _generate_hierarchical_tags(self, sibling_info: dict[str, Any], product: str) -> list[str]:
+        """Generate tags from navigation hierarchy"""
+        tags = []
+
+        # Always include product as first tag
+        if product and product != "unknown":
+            tags.append(product)
+
+        # Extract meaningful category tags based on common documentation patterns
+        # This is more useful than just copying the page slug
+        current_title = sibling_info.get("current_page_title", "").lower()
+        section = sibling_info.get("section_heading", "").lower()
+
+        # Define category mappings for common documentation sections
+        category_keywords = {
+            "getting-started": ["getting started", "quick start", "overview", "introduction"],
+            "administration": [
+                "admin",
+                "administration",
+                "configure",
+                "configuration",
+                "settings",
+                "setup",
+            ],
+            "user-management": [
+                "user",
+                "users",
+                "team",
+                "teams",
+                "member",
+                "permission",
+                "access",
+                "role",
+            ],
+            "api": ["api", "rest", "webhook", "integration", "developer"],
+            "security": ["security", "auth", "authentication", "sso", "saml", "oauth"],
+            "automation": ["automation", "automate", "workflow", "rule", "trigger"],
+            "reporting": ["report", "analytics", "dashboard", "metrics", "statistics"],
+            "troubleshooting": ["troubleshoot", "error", "issue", "problem", "fix"],
+            "billing": ["billing", "payment", "subscription", "pricing", "plan"],
+            "migration": ["migration", "import", "export", "backup", "restore"],
+        }
+
+        # Check both title and section for category keywords
+        text_to_check = f"{current_title} {section}"
+
+        for category, keywords in category_keywords.items():
+            if any(keyword in text_to_check for keyword in keywords):
+                if category not in tags:
+                    tags.append(category)
+                    # Only add 1-2 category tags to keep it focused
+                    if len(tags) >= 3:
+                        break
+
+        # If we still only have the product tag, try to extract from breadcrumbs
+        if len(tags) == 1 and (breadcrumb_data := sibling_info.get("breadcrumb_data")):
+            breadcrumbs = breadcrumb_data.get("breadcrumbs", [])
+            # Look for intermediate breadcrumbs (skip first 2 and last 1)
+            for crumb in breadcrumbs[2:-1]:
+                if name := crumb.get("name"):
+                    tag = self._normalize_tag(name)
+                    # Only add if it's short and meaningful (not a long page title)
+                    if tag and tag not in tags and len(tag.split("-")) <= 3:
+                        tags.append(tag)
+                        break
+
+        # Add section heading as last resort if we need more tags
+        if len(tags) < 3 and section:
+            normalized = self._normalize_tag(section)
+            # Only add if it's concise and not already in tags
+            if normalized and normalized not in tags and len(normalized.split("-")) <= 3:
+                tags.append(normalized)
+
+        return tags
+
+    def _get_atlas_md_version(self) -> str:
+        """Get current Atlas Markdown version"""
+        try:
+            from atlas_markdown import __version__
+
+            return __version__
+        except ImportError:
+            return "unknown"
 
     def get_images(self) -> set[str]:
         """Get all discovered image URLs"""
