@@ -2,6 +2,40 @@
 
 <!-- version list -->
 
+## v0.5.0 (2025-07-04)
+
+### Bug Fixes
+
+- Handle hyphenated YAML keys and extract shared formatter utility
+  ([`44f22aa`](https://github.com/jsade/atlas-markdown/commit/44f22aa16661c22649940053a55f81a390a2843f))
+
+- Improve PR release preview to handle branch restrictions
+  ([`fcb7ca8`](https://github.com/jsade/atlas-markdown/commit/fcb7ca89dfbc6054064c265b8cdbe8ab9b84a0df))
+
+### Build System
+
+- **deps**: Bump pillow from 11.2.1 to 11.3.0
+  ([`be3e2f3`](https://github.com/jsade/atlas-markdown/commit/be3e2f35a1023f77c40bb8c1caa3310a62da8af4))
+
+### Documentation
+
+- Add no-h1-headings to readme
+  ([`8d2f45f`](https://github.com/jsade/atlas-markdown/commit/8d2f45f957e198c2ddb4ff17255bab8d84cd6ef8))
+
+### Features
+
+- Add auto-tagging feature and support for disabling tags in markdown output
+  ([`c107f66`](https://github.com/jsade/atlas-markdown/commit/c107f66f47434e2765062c0095ca726e8bcf1b47))
+
+- Add auto-tagging feature with semantic content analysis
+  ([`6e417af`](https://github.com/jsade/atlas-markdown/commit/6e417af3c048e09a14499198fef9a5bed626cba8))
+
+### Refactoring
+
+- Change option from --include-resources to --exclude-resources in CLI
+  ([`3ea3d87`](https://github.com/jsade/atlas-markdown/commit/3ea3d876739c6f1cc3b302e3063c4ec680639000))
+
+
 ## v0.4.0 (2025-06-25)
 
 ### Documentation
