@@ -176,3 +176,152 @@ def test_wikilink_conversion_with_trailing_slash(parser: ContentParser) -> None:
     assert '[[change-project-customer-permissions/"|' not in markdown
     assert '[[manage-users/"|' not in markdown
     assert '/"|' not in markdown
+
+
+def test_extract_product_from_url(parser: ContentParser) -> None:
+    """Test extracting product identifier from URLs"""
+    # Test with full URL
+    product = parser._extract_product_from_url(
+        "https://support.atlassian.com/jira-service-management-cloud/docs/test-page"
+    )
+    assert product == "jira-service-management-cloud"
+
+    # Test with base URL
+    product = parser._extract_product_from_url("https://support.atlassian.com/confluence-cloud/")
+    assert product == "confluence-cloud"
+
+    # Test with resources URL
+    product = parser._extract_product_from_url(
+        "https://support.atlassian.com/statuspage/resources/test-resource"
+    )
+    assert product == "statuspage"
+
+
+def test_normalize_tag(parser: ContentParser) -> None:
+    """Test tag normalization"""
+    # Basic normalization
+    assert parser._normalize_tag("Service Project Configuration") == "service-project-configuration"
+    assert parser._normalize_tag("Set up request types") == "set-up-request-types"
+
+    # Special characters
+    assert parser._normalize_tag("User & Team Management") == "user-team-management"
+    assert parser._normalize_tag("API/REST Reference") == "api-rest-reference"
+
+    # Edge cases
+    assert parser._normalize_tag("  Spaces  Around  ") == "spaces-around"
+    assert parser._normalize_tag("Multiple---Hyphens") == "multiple-hyphens"
+    assert parser._normalize_tag("") == ""
+    assert parser._normalize_tag("123-Numbers-456") == "123-numbers-456"
+
+
+def test_generate_hierarchical_tags(parser: ContentParser) -> None:
+    """Test hierarchical tag generation"""
+    # Test with user management page
+    sibling_info = {
+        "current_page_title": "Manage users in your team",
+        "section_heading": "User Management",
+        "breadcrumb_data": {
+            "breadcrumbs": [
+                {"name": "Atlassian Support", "position": 1},
+                {"name": "Jira Service Management Cloud", "position": 2},
+                {"name": "Manage users in your team", "position": 3},
+            ]
+        },
+    }
+
+    tags = parser._generate_hierarchical_tags(sibling_info, "jira-service-management-cloud")
+    assert "jira-service-management-cloud" in tags
+    assert "user-management" in tags  # Should detect user management category
+
+    # Test with API documentation
+    sibling_info = {
+        "current_page_title": "REST API Reference",
+        "section_heading": "Developer Resources",
+        "breadcrumb_data": {
+            "breadcrumbs": [
+                {"name": "Atlassian Support", "position": 1},
+                {"name": "Confluence Cloud", "position": 2},
+                {"name": "REST API Reference", "position": 3},
+            ]
+        },
+    }
+
+    tags = parser._generate_hierarchical_tags(sibling_info, "confluence-cloud")
+    assert "confluence-cloud" in tags
+    assert "api" in tags  # Should detect API category
+
+    # Test with minimal info
+    sibling_info = {
+        "current_page_title": "Getting Started",
+        "section_heading": "",
+        "breadcrumb_data": {
+            "breadcrumbs": [
+                {"name": "Atlassian Support", "position": 1},
+                {"name": "Statuspage", "position": 2},
+                {"name": "Getting Started", "position": 3},
+            ]
+        },
+    }
+
+    tags = parser._generate_hierarchical_tags(sibling_info, "statuspage")
+    assert "statuspage" in tags
+    assert "getting-started" in tags  # Should detect getting started category
+
+
+def test_frontmatter_with_tags(parser: ContentParser) -> None:
+    """Test that tags are properly added to frontmatter"""
+    html = "<main><h1>Test Page</h1><p>Content here.</p></main>"
+
+    sibling_info = {
+        "current_page_title": "Manage users",
+        "breadcrumb_data": {
+            "breadcrumbs": [
+                {"name": "Atlassian Support", "position": 1},
+                {"name": "Jira Service Management Cloud", "position": 2},
+                {"name": "Administration", "position": 3},
+                {"name": "Manage users", "position": 4},
+            ]
+        },
+        "section_heading": "User management",
+    }
+
+    # Test with tags enabled (default)
+    markdown = parser.convert_to_markdown(
+        html,
+        "https://support.atlassian.com/jira-service-management-cloud/docs/manage-users",
+        "Manage users",
+        None,
+        sibling_info,
+        disable_tags=False,
+    )
+
+    # Check frontmatter includes tags
+    assert "tags:" in markdown
+    assert "- jira-service-management-cloud" in markdown
+    # Should have user-management tag based on the title/section
+    assert "- user-management" in markdown
+
+    # Check Atlas Markdown metadata is always included
+    assert "atlas_md_version:" in markdown
+    assert "atlas_md_url: https://github.com/jsade/atlas-markdown" in markdown
+    assert "atlas_md_product: jira-service-management-cloud" in markdown
+    assert "atlas_md_category: Administration" in markdown
+    assert "atlas_md_section: User management" in markdown
+
+    # Test with tags disabled
+    markdown_no_tags = parser.convert_to_markdown(
+        html,
+        "https://support.atlassian.com/jira-service-management-cloud/docs/manage-users",
+        "Manage users",
+        None,
+        sibling_info,
+        disable_tags=True,
+    )
+
+    # Check tags are not included when disabled
+    assert "tags:" not in markdown_no_tags
+
+    # But Atlas Markdown metadata should still be included
+    assert "atlas_md_version:" in markdown_no_tags
+    assert "atlas_md_url: https://github.com/jsade/atlas-markdown" in markdown_no_tags
+    assert "atlas_md_product: jira-service-management-cloud" in markdown_no_tags

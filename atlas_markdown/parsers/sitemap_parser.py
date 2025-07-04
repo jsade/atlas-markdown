@@ -13,9 +13,10 @@ logger = logging.getLogger(__name__)
 class SitemapParser:
     """Parse sitemap.xml and extract documentation URLs"""
 
-    def __init__(self, base_url: str):
+    def __init__(self, base_url: str, domain_restriction: str = "product"):
         self.base_url = base_url.rstrip("/")
         self.sitemap_url = f"{self.base_url}.xml"
+        self.domain_restriction = domain_restriction
 
     async def fetch_sitemap(self) -> str:
         """Fetch the sitemap XML content"""
@@ -85,24 +86,35 @@ class SitemapParser:
             # Extract just the URLs
             urls = [info["url"] for info in url_infos if info["url"] is not None]
 
-            # Filter URLs based on preferences and base URL
-            if include_resources:
-                # Include both /docs/ and /resources/ pages within base URL
-                filtered_urls = [
-                    url
-                    for url in urls
-                    if url
-                    and url.startswith(self.base_url)
-                    and ("/docs/" in url or "/resources/" in url)
-                ]
-            else:
-                # Only documentation URLs within base URL
-                filtered_urls = [
-                    url for url in urls if url and url.startswith(self.base_url) and "/docs/" in url
-                ]
+            # Apply domain restriction
+            filtered_urls = []
+            for url in urls:
+                if not url:
+                    continue
+
+                # Always reject non-Atlassian URLs
+                if not url.startswith("https://support.atlassian.com/"):
+                    continue
+
+                # Apply domain restriction mode
+                if self.domain_restriction == "off":
+                    # No restriction beyond atlassian.com
+                    if "/docs/" in url or (include_resources and "/resources/" in url):
+                        filtered_urls.append(url)
+                elif self.domain_restriction == "any-atlassian":
+                    # Any atlassian product
+                    if "/docs/" in url or (include_resources and "/resources/" in url):
+                        filtered_urls.append(url)
+                elif self.domain_restriction == "product":
+                    # Only URLs under the base URL (default)
+                    if url.startswith(self.base_url):
+                        if "/docs/" in url or (include_resources and "/resources/" in url):
+                            filtered_urls.append(url)
 
             logger.info(
-                f"Found {len(filtered_urls)} URLs (docs: {sum(1 for u in filtered_urls if u and '/docs/' in u)}, resources: {sum(1 for u in filtered_urls if u and '/resources/' in u)})"
+                f"Found {len(filtered_urls)} URLs with domain_restriction='{self.domain_restriction}' "
+                f"(docs: {sum(1 for u in filtered_urls if u and '/docs/' in u)}, "
+                f"resources: {sum(1 for u in filtered_urls if u and '/resources/' in u)})"
             )
 
             return filtered_urls

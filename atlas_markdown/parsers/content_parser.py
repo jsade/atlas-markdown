@@ -6,12 +6,13 @@ import json
 import logging
 import re
 from typing import Any, cast
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import yaml
 from bs4 import BeautifulSoup, Tag
 from markdownify import markdownify as md
 
+from ..utils.yaml_formatter import fix_yaml_list_formatting
 from .sibling_navigation_parser import SiblingNavigationParser
 
 logger = logging.getLogger(__name__)
@@ -329,7 +330,7 @@ class ContentParser:
                 # Remove all content before the H1 container
                 removed_count = 0
                 for element in list(h1_container.previous_siblings):
-                    if hasattr(element, "decompose"):
+                    if isinstance(element, Tag) and hasattr(element, "decompose"):
                         element.decompose()
                         removed_count += 1
                     elif isinstance(element, str) and element.strip():
@@ -523,6 +524,8 @@ class ContentParser:
         page_url: str,
         title: str | None = None,
         page_metadata: dict[str, Any] | None = None,
+        sibling_info: dict[str, Any] | None = None,
+        disable_tags: bool = False,
     ) -> str:
         """Convert HTML content to Markdown with enhanced frontmatter"""
         # Parse HTML
@@ -548,7 +551,7 @@ class ContentParser:
                 # Remove all content before the H1 container
                 removed_count = 0
                 for element in list(h1_container.previous_siblings):
-                    if hasattr(element, "decompose"):
+                    if isinstance(element, Tag) and hasattr(element, "decompose"):
                         element.decompose()
                         removed_count += 1
                     elif isinstance(element, str) and element.strip():
@@ -605,7 +608,7 @@ class ContentParser:
             markdown = f"# {title}\n\n{markdown}"
 
         # Build enhanced frontmatter
-        frontmatter = {"url": page_url, "scrape_date": self._get_current_date()}
+        frontmatter: dict[str, Any] = {"url": page_url, "scrape_date": self._get_current_date()}
 
         # Add metadata from initial state if available
         if page_metadata:
@@ -625,8 +628,53 @@ class ContentParser:
             if not frontmatter.get("description"):
                 frontmatter["description"] = self.current_page_description
 
+        # Extract product from URL
+        product = self._extract_product_from_url(page_url)
+
+        # Add tags if not disabled
+        if not disable_tags and sibling_info:
+            tags = self._generate_hierarchical_tags(sibling_info, product)
+
+            # Enhance tags with semantic content analysis if enabled
+            if tags and html_content:
+                # Check if content analysis is enabled (default: true)
+                import os
+
+                enable_content_analysis = (
+                    os.getenv("ATLAS_MD_ENABLE_CONTENT_ANALYSIS", "true").lower() == "true"
+                )
+
+                if enable_content_analysis:
+                    enhanced_tags = self._analyze_page_content(html_content, tags)
+                    tags = enhanced_tags
+
+            if tags:
+                frontmatter["tags"] = tags
+
+        # Always add Atlas Markdown metadata
+        frontmatter["atlas_md_version"] = self._get_atlas_md_version()
+        frontmatter["atlas_md_url"] = "https://github.com/jsade/atlas-markdown"
+        frontmatter["atlas_md_product"] = product
+
+        # Add category and section from sibling info
+        if sibling_info:
+            # Extract category from breadcrumbs
+            if breadcrumb_data := sibling_info.get("breadcrumb_data"):
+                breadcrumbs = breadcrumb_data.get("breadcrumbs", [])
+                # Category is typically the third breadcrumb (after "Atlassian Support" and product)
+                if len(breadcrumbs) > 2:
+                    frontmatter["atlas_md_category"] = breadcrumbs[2].get("name", "")
+
+            # Section from section heading
+            if section := sibling_info.get("section_heading"):
+                frontmatter["atlas_md_section"] = section
+
         # Format frontmatter as YAML
         metadata_str: str = yaml.dump(frontmatter, default_flow_style=False, sort_keys=False)
+
+        # Fix YAML formatting issue using shared utility
+        metadata_str = fix_yaml_list_formatting(metadata_str)
+
         markdown = f"---\n{metadata_str}---\n\n{markdown}"
 
         # Clean up markdown
@@ -849,6 +897,307 @@ class ContentParser:
         from datetime import datetime
 
         return datetime.now().isoformat()
+
+    def _extract_product_from_url(self, url: str) -> str:
+        """Extract product identifier from base URL"""
+        # Parse the URL
+        parsed = urlparse(url)
+        path_parts = parsed.path.strip("/").split("/")
+
+        # If the URL is like https://support.atlassian.com/jira-service-management-cloud/...
+        # The product would be the first path component
+        if path_parts:
+            return path_parts[0]
+
+        # Fallback to extracting from base_url
+        base_parsed = urlparse(self.base_url)
+        base_parts = base_parsed.path.strip("/").split("/")
+        if base_parts:
+            return base_parts[0]
+
+        return "unknown"
+
+    def _normalize_tag(self, text: str) -> str:
+        """Convert text to lowercase hyphenated tag format"""
+        if not text:
+            return ""
+
+        # Convert to lowercase
+        text = text.lower()
+
+        # Replace special characters and spaces with hyphens
+        text = re.sub(r"[^a-z0-9]+", "-", text)
+
+        # Remove leading/trailing hyphens
+        text = text.strip("-")
+
+        # Replace multiple hyphens with single hyphen
+        text = re.sub(r"-+", "-", text)
+
+        return text
+
+    def _generate_hierarchical_tags(self, sibling_info: dict[str, Any], product: str) -> list[str]:
+        """Generate tags from navigation hierarchy"""
+        tags = []
+
+        # Always include product as first tag
+        if product and product != "unknown":
+            tags.append(product)
+
+        # Extract meaningful category tags based on common documentation patterns
+        # This is more useful than just copying the page slug
+        current_title = sibling_info.get("current_page_title", "").lower()
+        section = sibling_info.get("section_heading", "").lower()
+
+        # Define category mappings for common documentation sections
+        category_keywords = {
+            "getting-started": ["getting started", "quick start", "overview", "introduction"],
+            "administration": [
+                "admin",
+                "administration",
+                "configure",
+                "configuration",
+                "settings",
+                "setup",
+            ],
+            "user-management": [
+                "user",
+                "users",
+                "team",
+                "teams",
+                "member",
+                "permission",
+                "access",
+                "role",
+            ],
+            "api": ["api", "rest", "webhook", "integration", "developer"],
+            "security": ["security", "auth", "authentication", "sso", "saml", "oauth"],
+            "automation": ["automation", "automate", "workflow", "rule", "trigger"],
+            "reporting": ["report", "analytics", "dashboard", "metrics", "statistics"],
+            "troubleshooting": ["troubleshoot", "error", "issue", "problem", "fix"],
+            "billing": ["billing", "payment", "subscription", "pricing", "plan"],
+            "migration": ["migration", "import", "export", "backup", "restore"],
+        }
+
+        # Check both title and section for category keywords
+        text_to_check = f"{current_title} {section}"
+
+        for category, keywords in category_keywords.items():
+            if any(keyword in text_to_check for keyword in keywords):
+                if category not in tags:
+                    tags.append(category)
+                    # Only add 1-2 category tags to keep it focused
+                    if len(tags) >= 3:
+                        break
+
+        # If we still only have the product tag, try to extract from breadcrumbs
+        if len(tags) == 1 and (breadcrumb_data := sibling_info.get("breadcrumb_data")):
+            breadcrumbs = breadcrumb_data.get("breadcrumbs", [])
+            # Look for intermediate breadcrumbs (skip first 2 and last 1)
+            for crumb in breadcrumbs[2:-1]:
+                if name := crumb.get("name"):
+                    tag = self._normalize_tag(name)
+                    # Only add if it's short and meaningful (not a long page title)
+                    if tag and tag not in tags and len(tag.split("-")) <= 3:
+                        tags.append(tag)
+                        break
+
+        # Add section heading as last resort if we need more tags
+        if len(tags) < 3 and section:
+            normalized = self._normalize_tag(section)
+            # Only add if it's concise and not already in tags
+            if normalized and normalized not in tags and len(normalized.split("-")) <= 3:
+                tags.append(normalized)
+
+        return tags
+
+    def _get_atlas_md_version(self) -> str:
+        """Get current Atlas Markdown version"""
+        try:
+            from atlas_markdown import __version__
+
+            return __version__
+        except ImportError:
+            return "unknown"
+
+    def _analyze_page_content(self, html_content: str, current_tags: list[str]) -> list[str]:
+        """Analyze page content for semantic tags using local NLP techniques"""
+        # Extract text content from HTML
+        soup = BeautifulSoup(html_content, "html.parser")
+
+        # 1. Extract emphasized content (headers, bold, code blocks)
+        important_text = []
+        for tag in soup.find_all(["h2", "h3", "h4", "strong", "em", "code"]):
+            text = tag.get_text(strip=True)
+            if text:
+                important_text.append(text)
+
+        # 2. Extract technical terms from lists (often contain features/options)
+        for ul in soup.find_all("ul"):
+            for li in ul.find_all("li"):
+                text = li.get_text(strip=True)[:100]  # First 100 chars of list items
+                if text:
+                    important_text.append(text)
+
+        # 3. Pattern-based extraction
+        full_text = soup.get_text()
+        detected_categories = set()
+
+        # Extract technical patterns if enabled
+        import os
+
+        enable_technical_patterns = (
+            os.getenv("ATLAS_MD_TECHNICAL_PATTERNS", "true").lower() == "true"
+        )
+
+        if enable_technical_patterns:
+            technical_patterns = self._extract_technical_patterns(full_text)
+            detected_categories.update(technical_patterns)
+
+        # 4. Frequency-based importance scoring
+        # Count occurrences of technical terms (excluding common words)
+        word_freq: dict[str, int] = {}
+        technical_terms = []
+
+        # Define common words to exclude
+        common_words = {
+            "the",
+            "a",
+            "an",
+            "and",
+            "or",
+            "but",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "of",
+            "with",
+            "by",
+            "from",
+            "as",
+            "is",
+            "was",
+            "are",
+            "were",
+            "been",
+            "be",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "could",
+            "should",
+            "may",
+            "might",
+            "must",
+            "can",
+            "this",
+            "that",
+            "these",
+            "those",
+            "i",
+            "you",
+            "he",
+            "she",
+            "it",
+            "we",
+            "they",
+            "them",
+            "their",
+            "what",
+            "which",
+            "who",
+            "when",
+            "where",
+            "why",
+            "how",
+            "all",
+            "each",
+            "every",
+            "some",
+            "any",
+            "many",
+            "few",
+            "more",
+            "most",
+            "other",
+            "such",
+            "only",
+            "own",
+            "same",
+            "so",
+            "than",
+            "too",
+            "very",
+            "just",
+            "then",
+            "now",
+            "also",
+        }
+
+        # Simple tokenization and filtering
+        words = re.findall(r"\b[a-zA-Z][a-zA-Z0-9_-]+\b", " ".join(important_text))
+        for word in words:
+            if len(word) > 3 and word.lower() not in common_words:
+                word_lower = word.lower()
+                word_freq[word_lower] = word_freq.get(word_lower, 0) + 1
+
+        # Get top technical terms
+        import os
+
+        min_term_frequency = int(os.getenv("ATLAS_MD_MIN_TERM_FREQUENCY", "3"))
+
+        sorted_terms = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)
+        for term, freq in sorted_terms[:5]:
+            if freq >= min_term_frequency and self._normalize_tag(term) not in current_tags:
+                technical_terms.append(self._normalize_tag(term))
+
+        # 5. Combine results
+        enhanced_tags = list(current_tags)
+
+        # Add detected categories
+        for category in detected_categories:
+            if category not in enhanced_tags:
+                enhanced_tags.append(category)
+
+        # Add top technical terms
+        for term in technical_terms[:2]:  # Add top 2 technical terms
+            if term not in enhanced_tags:
+                enhanced_tags.append(term)
+
+        # Limit total tags based on configuration
+        max_tags = int(os.getenv("ATLAS_MD_MAX_TAGS", "10"))
+        return enhanced_tags[:max_tags]
+
+    def _extract_technical_patterns(self, text: str) -> set[str]:
+        """Extract technical patterns like API endpoints, config files, CLI commands"""
+        detected_categories = set()
+
+        # Define patterns for different technical content types
+        patterns = {
+            "api-reference": r"/api/[^\s]+|REST API|webhook|endpoint|HTTP method|GET /|POST /|PUT /|DELETE /",
+            "configuration-guide": r"\.yml|\.yaml|\.json|\.properties|configuration file|config\.|settings\.|config\.yml|config\.yaml",
+            "cli-usage": r"--[a-z-]+|atlas-markdown|npm run|pip install|bash|shell command|\$\s*\w+",
+            "integration-guide": r"integrate with|integration|connector|plugin|third-party|external service",
+            "permissions-setup": r"permission|role|access control|admin|viewer|RBAC|authorization",
+            "code-examples": r"```\w+|function\s+\w+|class\s+\w+|def\s+\w+|import\s+\w+|require\(",
+            "database-guide": r"SQL|query|database|table|schema|index|migration|JOIN|SELECT|INSERT",
+            "docker-guide": r"docker|container|dockerfile|docker-compose|image|volume|port\s*:\s*\d+",
+            "kubernetes-guide": r"kubernetes|k8s|pod|deployment|service|ingress|kubectl|helm",
+            "monitoring-guide": r"monitoring|metrics|logs|alerts|dashboard|prometheus|grafana|datadog",
+        }
+
+        for category, pattern in patterns.items():
+            if re.search(pattern, text, re.IGNORECASE):
+                detected_categories.add(category)
+
+        return detected_categories
 
     def get_images(self) -> set[str]:
         """Get all discovered image URLs"""

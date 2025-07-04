@@ -56,11 +56,17 @@ jobs:
 
           # Switch to main and create a temporary merge
           git checkout main
-          git merge --no-ff --no-commit ${{ github.event.pull_request.head.ref }} || {
+
+          # Create a proper merge commit to simulate the actual merge
+          git merge --no-ff ${{ github.event.pull_request.head.ref }} -m "Merge pull request #${{ github.event.pull_request.number }}" || {
             echo "Merge conflict detected - cannot preview release"
             echo "Please resolve conflicts and update the PR"
             exit 1
           }
+
+          # Show the current state
+          echo "Current branch after merge: $(git branch --show-current)"
+          echo "Latest commit: $(git log -1 --oneline)"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -95,6 +101,57 @@ jobs:
               exit(1)
           "
 
+      - name: Analyze commits manually
+        id: commit_analysis
+        run: |
+          # Get commits that will be included in the merge
+          MERGE_BASE=$(git merge-base origin/main HEAD)
+
+          # Analyze commits for conventional commit patterns
+          HAS_BREAKING=false
+          HAS_FEAT=false
+          HAS_FIX=false
+
+          echo "Analyzing commits for conventional commit patterns..."
+          while IFS= read -r commit; do
+            # Extract commit message
+            MSG=$(git log -1 --pretty=%s "$commit")
+            echo "Checking: $MSG"
+
+            # Check for breaking changes
+            if [[ "$MSG" =~ ^[a-zA-Z]+!: ]] || git log -1 --pretty=%b "$commit" | grep -q "BREAKING CHANGE:"; then
+              HAS_BREAKING=true
+              echo "  → Breaking change detected"
+            fi
+
+            # Check for features
+            if [[ "$MSG" =~ ^feat(\(.+\))?!?: ]]; then
+              HAS_FEAT=true
+              echo "  → Feature detected"
+            fi
+
+            # Check for fixes
+            if [[ "$MSG" =~ ^fix(\(.+\))?!?: ]]; then
+              HAS_FIX=true
+              echo "  → Fix detected"
+            fi
+          done < <(git rev-list $MERGE_BASE..HEAD)
+
+          # Determine release type
+          if [ "$HAS_BREAKING" = "true" ]; then
+            echo "release_type=major" >> $GITHUB_OUTPUT
+            echo "will_release=true" >> $GITHUB_OUTPUT
+          elif [ "$HAS_FEAT" = "true" ]; then
+            echo "release_type=minor" >> $GITHUB_OUTPUT
+            echo "will_release=true" >> $GITHUB_OUTPUT
+          elif [ "$HAS_FIX" = "true" ]; then
+            echo "release_type=patch" >> $GITHUB_OUTPUT
+            echo "will_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "release_type=none" >> $GITHUB_OUTPUT
+            echo "will_release=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Check release impact
         id: release_check
         env:
@@ -123,15 +180,22 @@ jobs:
           echo "Checking if release would be made..."
 
           if ! RELEASE_OUTPUT=$(semantic-release --noop version 2>&1); then
-            echo "Error running semantic-release: $RELEASE_OUTPUT"
-            echo "will_release=error" >> $GITHUB_OUTPUT
-            echo "error_message=Failed to analyze commits" >> $GITHUB_OUTPUT
-            exit 0  # Don't fail the workflow, just report error
-          fi
+            echo "Warning: semantic-release failed, using manual analysis"
+            echo "Semantic-release output: $RELEASE_OUTPUT"
 
-          if echo "$RELEASE_OUTPUT" | grep -q "No release will be made"; then
-            echo "will_release=false" >> $GITHUB_OUTPUT
-            echo "release_type=none" >> $GITHUB_OUTPUT
+            # Use manual analysis results
+            echo "will_release=${{ steps.commit_analysis.outputs.will_release }}" >> $GITHUB_OUTPUT
+            echo "release_type=${{ steps.commit_analysis.outputs.release_type }}" >> $GITHUB_OUTPUT
+          elif echo "$RELEASE_OUTPUT" | grep -q "No release will be made"; then
+            # Check if it's because of branch restrictions
+            if echo "$RELEASE_OUTPUT" | grep -q "branch.*isn't in any release groups"; then
+              echo "Semantic-release blocked by branch rules, using manual analysis"
+              echo "will_release=${{ steps.commit_analysis.outputs.will_release }}" >> $GITHUB_OUTPUT
+              echo "release_type=${{ steps.commit_analysis.outputs.release_type }}" >> $GITHUB_OUTPUT
+            else
+              echo "will_release=false" >> $GITHUB_OUTPUT
+              echo "release_type=none" >> $GITHUB_OUTPUT
+            fi
           else
             echo "will_release=true" >> $GITHUB_OUTPUT
 
@@ -170,11 +234,35 @@ jobs:
             fi
           fi
 
+          # Calculate next version if using manual analysis
+          if [ "${{ steps.commit_analysis.outputs.will_release }}" = "true" ] && [ -z "$NEXT_VERSION" ]; then
+            IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
+            MAJOR=${VERSION_PARTS[0]:-0}
+            MINOR=${VERSION_PARTS[1]:-0}
+            PATCH=${VERSION_PARTS[2]:-0}
+
+            case "${{ steps.commit_analysis.outputs.release_type }}" in
+              major)
+                NEXT_VERSION="$((MAJOR + 1)).0.0"
+                ;;
+              minor)
+                NEXT_VERSION="${MAJOR}.$((MINOR + 1)).0"
+                ;;
+              patch)
+                NEXT_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+                ;;
+            esac
+
+            if [ -n "$NEXT_VERSION" ]; then
+              echo "next_version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+            fi
+          fi
+
           # Get last released version with error handling
           if LAST_VERSION=$(semantic-release version --print-last-released 2>/dev/null); then
             echo "last_version=$LAST_VERSION" >> $GITHUB_OUTPUT
           else
-            echo "last_version=none" >> $GITHUB_OUTPUT
+            echo "last_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
           fi
 
       - name: Comment on PR
