@@ -946,8 +946,8 @@ class ContentParser:
 
         # Extract meaningful category tags based on common documentation patterns
         # This is more useful than just copying the page slug
-        current_title = sibling_info.get("current_page_title", "").lower()
-        section = sibling_info.get("section_heading", "").lower()
+        current_title = (sibling_info.get("current_page_title") or "").lower()
+        section = (sibling_info.get("section_heading") or "").lower()
 
         # Define category mappings for common documentation sections
         category_keywords = {

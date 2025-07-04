@@ -278,7 +278,7 @@ class SiblingNavigationParser:
         if nav_tree and isinstance(nav_tree, Tag):
             for link in nav_tree.find_all("a", href=True):
                 url = self._normalize_url(link["href"])
-                if url and url.startswith(self.base_url):
+                if url:
                     links.add(url)
 
         # Breadcrumb navigation
@@ -286,7 +286,7 @@ class SiblingNavigationParser:
         if breadcrumb and isinstance(breadcrumb, Tag):
             for link in breadcrumb.find_all("a", href=True):
                 url = self._normalize_url(link["href"])
-                if url and url.startswith(self.base_url):
+                if url:
                     links.add(url)
 
         return list(links)

@@ -10,6 +10,8 @@ from urllib.parse import urljoin, urlparse, urlunparse
 
 from playwright.async_api import Browser, Page, async_playwright
 
+from atlas_markdown.utils.browser_cleanup import register_browser, register_playwright
+
 logger = logging.getLogger(__name__)
 
 
@@ -39,6 +41,8 @@ class DocumentationCrawler:
         for attempt in range(max_retries):
             try:
                 self.playwright = await async_playwright().start()
+                register_playwright(self.playwright)  # Register for cleanup
+
                 self.browser = await self.playwright.chromium.launch(
                     headless=True,
                     args=[
@@ -50,6 +54,7 @@ class DocumentationCrawler:
                         "--disable-features=IsolateOrigins,site-per-process",
                     ],
                 )
+                register_browser(self.browser)  # Register for cleanup
 
                 # Create page with timeout
                 self.page = await self.browser.new_page()

@@ -24,6 +24,7 @@ from atlas_markdown.parsers.initial_state_parser import InitialStateParser
 from atlas_markdown.parsers.link_resolver import LinkResolver
 from atlas_markdown.parsers.sitemap_parser import SitemapParser
 from atlas_markdown.scrapers.crawler import DocumentationCrawler
+from atlas_markdown.utils.browser_cleanup import cleanup_all_browsers
 from atlas_markdown.utils.file_manager import FileSystemManager
 from atlas_markdown.utils.health_monitor import CircuitBreaker, HealthMonitor
 from atlas_markdown.utils.image_downloader import ImageDownloader
@@ -1394,12 +1395,22 @@ def scrape(
         console.print("\n[bold green]✅ Scraping completed successfully![/bold green]")
     except KeyboardInterrupt:
         console.print("\n[yellow]⚠️  Scraping interrupted by user[/yellow]")
+        # Ensure browsers are cleaned up
+        asyncio.run(cleanup_all_browsers())
         sys.exit(1)
     except Exception as e:
         console.print(f"\n[bold red]❌ Scraping failed: {e}[/bold red]")
         if verbose:
             console.print_exception()
+        # Ensure browsers are cleaned up
+        asyncio.run(cleanup_all_browsers())
         sys.exit(1)
+    finally:
+        # Final cleanup attempt for any lingering browsers
+        try:
+            asyncio.run(cleanup_all_browsers())
+        except Exception:
+            pass  # Ignore errors during final cleanup
 
 
 if __name__ == "__main__":

@@ -232,9 +232,8 @@ class FileSystemManager:
 
     async def create_index(self, pages: list[dict[str, Any]]) -> str:
         """Create an index file with all scraped pages"""
-        index_content = """# Documentation Index
+        index_content = """# Table of Contents
 
-## Table of Contents
 
 """
 
@@ -286,7 +285,7 @@ class FileSystemManager:
 
             # Add file to tree
             filename = parts[-1] if parts else Path(relative_str).name
-            current[filename] = {"title": title, "url": url, "path": "/" + relative_str}
+            current[filename] = {"title": title, "url": url, "path": relative_str}
 
         # Generate index content with proper heading hierarchy
         def generate_tree_markdown(
