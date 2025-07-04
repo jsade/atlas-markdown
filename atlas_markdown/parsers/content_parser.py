@@ -12,6 +12,7 @@ import yaml
 from bs4 import BeautifulSoup, Tag
 from markdownify import markdownify as md
 
+from ..utils.yaml_formatter import fix_yaml_list_formatting
 from .sibling_navigation_parser import SiblingNavigationParser
 
 logger = logging.getLogger(__name__)
@@ -671,9 +672,8 @@ class ContentParser:
         # Format frontmatter as YAML
         metadata_str: str = yaml.dump(frontmatter, default_flow_style=False, sort_keys=False)
 
-        # Fix YAML formatting issue where lists have an extra newline after the key
-        # This converts "tags:\n\n- item" to "tags:\n- item"
-        metadata_str = re.sub(r"(\w+):\s*\n\s*\n\s*-", r"\1:\n-", metadata_str)
+        # Fix YAML formatting issue using shared utility
+        metadata_str = fix_yaml_list_formatting(metadata_str)
 
         markdown = f"---\n{metadata_str}---\n\n{markdown}"
 

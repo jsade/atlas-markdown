@@ -6,9 +6,13 @@ This script processes all .md files in a directory and fixes the formatting issu
 YAML lists have an extra newline after the key (e.g., "tags:\n\n- item" becomes "tags:\n- item").
 """
 
-import re
 import sys
 from pathlib import Path
+
+# Add parent directory to path to import atlas_markdown modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from atlas_markdown.utils.yaml_formatter import fix_yaml_list_formatting
 
 
 def fix_yaml_frontmatter(content: str) -> tuple[str, bool]:
@@ -36,9 +40,8 @@ def fix_yaml_frontmatter(content: str) -> tuple[str, bool]:
     frontmatter = content[:end_index]
     rest_of_content = content[end_index:]
 
-    # Fix the YAML formatting issue
-    # This pattern matches any word followed by colon, newlines, and a dash
-    fixed_frontmatter = re.sub(r"(\w+):\s*\n\s*\n\s*-", r"\1:\n-", frontmatter)
+    # Fix the YAML formatting issue using shared utility
+    fixed_frontmatter = fix_yaml_list_formatting(frontmatter)
 
     # Check if changes were made
     if fixed_frontmatter != frontmatter:
