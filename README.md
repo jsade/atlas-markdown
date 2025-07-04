@@ -55,7 +55,7 @@ Built specifically for use with [Obsidian](https://obsidian.md/), though any mar
 - 🎯 **Accurate Content Extraction** - Handles React SPAs and dynamic content with Playwright
 - 📝 **Clean Markdown** - Converts HTML to linted and well-formatted Markdown
 - 🛡️ **Managed Safeguards** - Rate limiting, circuit breakers, and configurable constraints
-- 🏷️ **Auto-Tagging** - Automatically generates hierarchical tags from navigation structure for better organization in Obsidian
+- 🏷️ **Auto-Tagging** - Automatically generates contextual tags using semantic content analysis for better organization in Obsidian
 
 ## Requirements
 
@@ -372,6 +372,10 @@ source ~/.zshrc  # or ~/.bashrc
 | **Content Processing** |
 | `ATLAS_MD_NO_H1_HEADINGS` | Remove H1 headings from output | `false` | `true`, `false` |
 | `ATLAS_MD_DISABLE_TAGS` | Disable automatic tag generation | `false` | `true`, `false` |
+| `ATLAS_MD_ENABLE_CONTENT_ANALYSIS` | Enable semantic content analysis for enhanced tagging | `true` | `true`, `false` |
+| `ATLAS_MD_MAX_TAGS` | Maximum tags per page | `10` | `1-20` |
+| `ATLAS_MD_MIN_TERM_FREQUENCY` | Minimum occurrences for technical terms | `3` | `1-10` |
+| `ATLAS_MD_TECHNICAL_PATTERNS` | Enable technical pattern detection | `true` | `true`, `false` |
 
 #### Domain Restriction Modes
 

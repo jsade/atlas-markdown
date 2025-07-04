@@ -348,6 +348,9 @@ class DocumentationScraper(ThrottledScraper):
         self.entry_point = f"{self.base_url}/resources/"
         self.config["disable_tags"] = env_config.get("ATLAS_MD_DISABLE_TAGS", False)
 
+        # Get domain restriction early since it's needed for parsers
+        self.domain_restriction = env_config["ATLAS_MD_DOMAIN_RESTRICTION"]
+
         # Create output directory if it doesn't exist
         output_dir = Path(config["output"])
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -365,7 +368,7 @@ class DocumentationScraper(ThrottledScraper):
         self.parser = ContentParser(
             self.base_url, no_h1_headings=config.get("no_h1_headings", False)
         )
-        self.initial_state_parser = InitialStateParser(self.base_url)
+        self.initial_state_parser = InitialStateParser(self.base_url, self.domain_restriction)
         self.redirect_handler = RedirectHandler()
         self.link_resolver = LinkResolver(self.base_url, self.redirect_handler)
         self.health_monitor = HealthMonitor(config["output"])
@@ -380,7 +383,6 @@ class DocumentationScraper(ThrottledScraper):
         self.max_pages = env_config["ATLAS_MD_MAX_PAGES"]
         self.max_runtime_minutes = env_config["ATLAS_MD_MAX_RUNTIME_MINUTES"]
         self.max_file_size_mb = env_config["ATLAS_MD_MAX_FILE_SIZE_MB"]
-        self.domain_restriction = env_config["ATLAS_MD_DOMAIN_RESTRICTION"]
 
         self.retry_delay_minutes = 5
         self.site_hierarchy: dict[str, Any] | None = None  # Will be populated from initial state
@@ -608,7 +610,7 @@ class DocumentationScraper(ThrottledScraper):
 
             # Fallback to sitemap parser
             progress.update(task, description="Loading pages from sitemap...")
-            sitemap_parser = SitemapParser(self.base_url)
+            sitemap_parser = SitemapParser(self.base_url, self.domain_restriction)
             pages = await sitemap_parser.get_all_urls(
                 include_resources=self.config.get("include_resources", False)
             )

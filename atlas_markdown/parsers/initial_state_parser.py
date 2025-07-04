@@ -15,8 +15,9 @@ logger = logging.getLogger(__name__)
 class InitialStateParser:
     """Extract and parse the navigation structure from React initial state"""
 
-    def __init__(self, base_url: str):
+    def __init__(self, base_url: str, domain_restriction: str = "product"):
         self.base_url = base_url.rstrip("/")
+        self.domain_restriction = domain_restriction
         self.pages_map: dict[str, dict[str, Any]] = {}
 
     def extract_initial_state(self, html: str) -> dict[str, Any] | None:
@@ -43,6 +44,28 @@ class InitialStateParser:
                     logger.error(f"Failed to parse __APP_INITIAL_STATE__: {e}")
 
         return None
+
+    def _is_url_allowed(self, url: str) -> bool:
+        """Check if URL is allowed based on domain restriction"""
+        if not url:
+            return False
+
+        # Always reject non-Atlassian URLs
+        if not url.startswith("https://support.atlassian.com/"):
+            return False
+
+        if self.domain_restriction == "off":
+            # No restriction beyond atlassian.com
+            return True
+        elif self.domain_restriction == "any-atlassian":
+            # Any atlassian product
+            return True
+        elif self.domain_restriction == "product":
+            # Only URLs under the base URL (default)
+            return url.startswith(self.base_url)
+        else:
+            # Default to most restrictive
+            return url.startswith(self.base_url)
 
     def extract_navigation_structure(self, state_data: dict[str, Any]) -> list[dict[str, Any]]:
         """Extract navigation structure from initial state data"""
@@ -90,8 +113,8 @@ class InitialStateParser:
                 ]
                 self._process_child_list(item["childList"], page_info["children"])
 
-            # Only add if URL is within our base URL
-            if page_info.get("url") and page_info["url"].startswith(self.base_url):
+            # Only add if URL is allowed based on domain restriction
+            if page_info.get("url") and self._is_url_allowed(page_info["url"]):
                 navigation.append(page_info)
                 # Also add to flat map for easy lookup
                 self.pages_map[page_info["url"]] = page_info
@@ -128,9 +151,9 @@ class InitialStateParser:
             if child_key in item and item[child_key]:
                 self._process_navigation_items(item[child_key], page_info["children"])
 
-        # Only add if URL is within our base URL
+        # Only add if URL is allowed based on domain restriction
         url = page_info.get("url")
-        if url and isinstance(url, str) and url.startswith(self.base_url):
+        if url and isinstance(url, str) and self._is_url_allowed(url):
             navigation.append(page_info)
 
     def _process_entries(self, entries: Any, navigation: list[dict[str, Any]]) -> None:

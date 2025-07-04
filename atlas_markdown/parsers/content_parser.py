@@ -329,7 +329,7 @@ class ContentParser:
                 # Remove all content before the H1 container
                 removed_count = 0
                 for element in list(h1_container.previous_siblings):
-                    if hasattr(element, "decompose"):
+                    if isinstance(element, Tag) and hasattr(element, "decompose"):
                         element.decompose()
                         removed_count += 1
                     elif isinstance(element, str) and element.strip():
@@ -550,7 +550,7 @@ class ContentParser:
                 # Remove all content before the H1 container
                 removed_count = 0
                 for element in list(h1_container.previous_siblings):
-                    if hasattr(element, "decompose"):
+                    if isinstance(element, Tag) and hasattr(element, "decompose"):
                         element.decompose()
                         removed_count += 1
                     elif isinstance(element, str) and element.strip():
@@ -633,6 +633,20 @@ class ContentParser:
         # Add tags if not disabled
         if not disable_tags and sibling_info:
             tags = self._generate_hierarchical_tags(sibling_info, product)
+
+            # Enhance tags with semantic content analysis if enabled
+            if tags and html_content:
+                # Check if content analysis is enabled (default: true)
+                import os
+
+                enable_content_analysis = (
+                    os.getenv("ATLAS_MD_ENABLE_CONTENT_ANALYSIS", "true").lower() == "true"
+                )
+
+                if enable_content_analysis:
+                    enhanced_tags = self._analyze_page_content(html_content, tags)
+                    tags = enhanced_tags
+
             if tags:
                 frontmatter["tags"] = tags
 
@@ -656,6 +670,11 @@ class ContentParser:
 
         # Format frontmatter as YAML
         metadata_str: str = yaml.dump(frontmatter, default_flow_style=False, sort_keys=False)
+
+        # Fix YAML formatting issue where lists have an extra newline after the key
+        # This converts "tags:\n\n- item" to "tags:\n- item"
+        metadata_str = re.sub(r"(\w+):\s*\n\s*\n\s*-", r"\1:\n-", metadata_str)
+
         markdown = f"---\n{metadata_str}---\n\n{markdown}"
 
         # Clean up markdown
@@ -1000,6 +1019,185 @@ class ContentParser:
             return __version__
         except ImportError:
             return "unknown"
+
+    def _analyze_page_content(self, html_content: str, current_tags: list[str]) -> list[str]:
+        """Analyze page content for semantic tags using local NLP techniques"""
+        # Extract text content from HTML
+        soup = BeautifulSoup(html_content, "html.parser")
+
+        # 1. Extract emphasized content (headers, bold, code blocks)
+        important_text = []
+        for tag in soup.find_all(["h2", "h3", "h4", "strong", "em", "code"]):
+            text = tag.get_text(strip=True)
+            if text:
+                important_text.append(text)
+
+        # 2. Extract technical terms from lists (often contain features/options)
+        for ul in soup.find_all("ul"):
+            for li in ul.find_all("li"):
+                text = li.get_text(strip=True)[:100]  # First 100 chars of list items
+                if text:
+                    important_text.append(text)
+
+        # 3. Pattern-based extraction
+        full_text = soup.get_text()
+        detected_categories = set()
+
+        # Extract technical patterns if enabled
+        import os
+
+        enable_technical_patterns = (
+            os.getenv("ATLAS_MD_TECHNICAL_PATTERNS", "true").lower() == "true"
+        )
+
+        if enable_technical_patterns:
+            technical_patterns = self._extract_technical_patterns(full_text)
+            detected_categories.update(technical_patterns)
+
+        # 4. Frequency-based importance scoring
+        # Count occurrences of technical terms (excluding common words)
+        word_freq: dict[str, int] = {}
+        technical_terms = []
+
+        # Define common words to exclude
+        common_words = {
+            "the",
+            "a",
+            "an",
+            "and",
+            "or",
+            "but",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "of",
+            "with",
+            "by",
+            "from",
+            "as",
+            "is",
+            "was",
+            "are",
+            "were",
+            "been",
+            "be",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "could",
+            "should",
+            "may",
+            "might",
+            "must",
+            "can",
+            "this",
+            "that",
+            "these",
+            "those",
+            "i",
+            "you",
+            "he",
+            "she",
+            "it",
+            "we",
+            "they",
+            "them",
+            "their",
+            "what",
+            "which",
+            "who",
+            "when",
+            "where",
+            "why",
+            "how",
+            "all",
+            "each",
+            "every",
+            "some",
+            "any",
+            "many",
+            "few",
+            "more",
+            "most",
+            "other",
+            "such",
+            "only",
+            "own",
+            "same",
+            "so",
+            "than",
+            "too",
+            "very",
+            "just",
+            "then",
+            "now",
+            "also",
+        }
+
+        # Simple tokenization and filtering
+        words = re.findall(r"\b[a-zA-Z][a-zA-Z0-9_-]+\b", " ".join(important_text))
+        for word in words:
+            if len(word) > 3 and word.lower() not in common_words:
+                word_lower = word.lower()
+                word_freq[word_lower] = word_freq.get(word_lower, 0) + 1
+
+        # Get top technical terms
+        import os
+
+        min_term_frequency = int(os.getenv("ATLAS_MD_MIN_TERM_FREQUENCY", "3"))
+
+        sorted_terms = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)
+        for term, freq in sorted_terms[:5]:
+            if freq >= min_term_frequency and self._normalize_tag(term) not in current_tags:
+                technical_terms.append(self._normalize_tag(term))
+
+        # 5. Combine results
+        enhanced_tags = list(current_tags)
+
+        # Add detected categories
+        for category in detected_categories:
+            if category not in enhanced_tags:
+                enhanced_tags.append(category)
+
+        # Add top technical terms
+        for term in technical_terms[:2]:  # Add top 2 technical terms
+            if term not in enhanced_tags:
+                enhanced_tags.append(term)
+
+        # Limit total tags based on configuration
+        max_tags = int(os.getenv("ATLAS_MD_MAX_TAGS", "10"))
+        return enhanced_tags[:max_tags]
+
+    def _extract_technical_patterns(self, text: str) -> set[str]:
+        """Extract technical patterns like API endpoints, config files, CLI commands"""
+        detected_categories = set()
+
+        # Define patterns for different technical content types
+        patterns = {
+            "api-reference": r"/api/[^\s]+|REST API|webhook|endpoint|HTTP method|GET /|POST /|PUT /|DELETE /",
+            "configuration-guide": r"\.yml|\.yaml|\.json|\.properties|configuration file|config\.|settings\.|config\.yml|config\.yaml",
+            "cli-usage": r"--[a-z-]+|atlas-markdown|npm run|pip install|bash|shell command|\$\s*\w+",
+            "integration-guide": r"integrate with|integration|connector|plugin|third-party|external service",
+            "permissions-setup": r"permission|role|access control|admin|viewer|RBAC|authorization",
+            "code-examples": r"```\w+|function\s+\w+|class\s+\w+|def\s+\w+|import\s+\w+|require\(",
+            "database-guide": r"SQL|query|database|table|schema|index|migration|JOIN|SELECT|INSERT",
+            "docker-guide": r"docker|container|dockerfile|docker-compose|image|volume|port\s*:\s*\d+",
+            "kubernetes-guide": r"kubernetes|k8s|pod|deployment|service|ingress|kubectl|helm",
+            "monitoring-guide": r"monitoring|metrics|logs|alerts|dashboard|prometheus|grafana|datadog",
+        }
+
+        for category, pattern in patterns.items():
+            if re.search(pattern, text, re.IGNORECASE):
+                detected_categories.add(category)
+
+        return detected_categories
 
     def get_images(self) -> set[str]:
         """Get all discovered image URLs"""
