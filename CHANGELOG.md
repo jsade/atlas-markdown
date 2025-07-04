@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.6.0 (2025-07-04)
+
+### Features
+
+- Implement browser cleanup utilities and register for automatic cleanup
+  ([`c39a488`](https://github.com/jsade/atlas-markdown/commit/c39a4882d1b716baaa2463fba1be6ec9637f3002))
+
+
 ## v0.5.0 (2025-07-04)
 
 ### Bug Fixes
