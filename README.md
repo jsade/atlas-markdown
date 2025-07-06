@@ -43,19 +43,19 @@
 </div>
 
 
-⭐ **A robust command-line tool for transforming [Atlassian online product documentation](https://support.atlassian.com) into a clean, organized Markdown site on your local filesystem.**
+⭐ A robust command-line tool for transforming [Atlassian online product documentation](https://support.atlassian.com) into a clean, organized Markdown site on your local filesystem.
 
 Built specifically for use with [Obsidian](https://obsidian.md/), though any markdown viewer will work.
 
 ## Features
 
-- 🚀 **Autonomous Operation** - Set it and forget it. The script handles everything from discovery to final output
-- 🔄 **Resume Capability** - Interrupt anytime and continue where you left off
-- 📸 **Image Handling** - Downloads all images and updates references automatically
-- 🎯 **Accurate Content Extraction** - Handles React SPAs and dynamic content with Playwright
-- 📝 **Clean Markdown** - Converts HTML to linted and well-formatted Markdown
-- 🛡️ **Managed Safeguards** - Rate limiting, circuit breakers, and configurable constraints
-- 🏷️ **Auto-Tagging** - Automatically generates contextual tags using semantic content analysis for better organization in Obsidian
+- **Autonomous Operation** - Set it and forget it. The script handles everything from discovery to final output
+- **Resume Capability** - Interrupt anytime and continue where you left off
+- **Image Handling** - Downloads all images and updates references automatically
+- **Accurate Content Extraction** - Handles React SPAs and dynamic content with Playwright
+- **Clean Markdown** - Converts HTML to linted and well-formatted Markdown
+- **Managed Safeguards** - Rate limiting, circuit breakers, and configurable constraints
+- **Auto-Tagging** - Automatically generates contextual tags using semantic content analysis for better organization in Obsidian
 
 ## Requirements
 
@@ -65,7 +65,7 @@ Built specifically for use with [Obsidian](https://obsidian.md/), though any mar
 ## Quick Start
 
 > [!CAUTION]
-> Pre-release, currently in testing phase. Iterative changes to be expected.
+> Pre-release. Iterative changes to be expected.
 
 Download the wheel file from the [latest release](https://github.com/jsade/atlas-markdown/releases/latest) (e.g., `atlas_markdown-0.1.1-py3-none-any.whl`).
 
