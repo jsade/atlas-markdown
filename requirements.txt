@@ -78,7 +78,7 @@ python-gitlab==6.0.0
 python-semantic-release==10.1.0
 PyYAML==6.0.2
 questionary==2.1.0
-requests==2.32.4
+requests==2.33.0
 requests-toolbelt==1.0.0
 rich==14.0.0
 ruff==0.11.13
