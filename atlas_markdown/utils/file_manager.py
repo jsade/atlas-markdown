@@ -232,7 +232,7 @@ class FileSystemManager:
 
     async def create_index(self, pages: list[dict[str, Any]]) -> str:
         """Create an index file with all scraped pages"""
-        index_content = """# Table of Contents
+        index_content = """# Documentation Index
 
 
 """

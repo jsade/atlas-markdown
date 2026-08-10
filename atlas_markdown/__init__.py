@@ -2,7 +2,7 @@
 
 try:
     # Try to get version from setuptools_scm
-    from ._version import version as __version__
+    from ._version import version as __version__  # type: ignore[import-not-found]
 except ImportError:
     # Fallback to static version
     __version__ = "0.1.1"

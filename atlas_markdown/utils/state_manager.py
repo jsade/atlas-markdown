@@ -63,8 +63,7 @@ class StateManager:
                     await self._db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
 
                 # Create tables
-                await self._db.execute(
-                    """
+                await self._db.execute("""
                     CREATE TABLE IF NOT EXISTS pages (
                         url TEXT PRIMARY KEY,
                         status TEXT NOT NULL DEFAULT 'pending',
@@ -79,16 +78,13 @@ class StateManager:
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         completed_at TIMESTAMP
                     )
-                """
-                )
+                """)
 
                 # Create index for better performance
-                await self._db.execute(
-                    """
+                await self._db.execute("""
                     CREATE INDEX IF NOT EXISTS idx_pages_status
                     ON pages(status, retry_count)
-                """
-                )
+                """)
 
                 # Add crawl_depth column if it doesn't exist (for existing databases)
                 cursor = await self._db.execute("PRAGMA table_info(pages)")
@@ -105,8 +101,7 @@ class StateManager:
                     await self._db.execute("ALTER TABLE pages ADD COLUMN parent_url TEXT")
                     logger.info("Added parent_url column to existing database")
 
-                await self._db.execute(
-                    """
+                await self._db.execute("""
                     CREATE TABLE IF NOT EXISTS images (
                         url TEXT PRIMARY KEY,
                         page_url TEXT NOT NULL,
@@ -116,11 +111,9 @@ class StateManager:
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY (page_url) REFERENCES pages (url)
                     )
-                """
-                )
+                """)
 
-                await self._db.execute(
-                    """
+                await self._db.execute("""
                     CREATE TABLE IF NOT EXISTS scraper_runs (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -131,8 +124,7 @@ class StateManager:
                         images_total INTEGER DEFAULT 0,
                         images_downloaded INTEGER DEFAULT 0
                     )
-                """
-                )
+                """)
 
                 await self._db.commit()
                 logger.info("Database initialized successfully")
@@ -356,13 +348,11 @@ class StateManager:
         """Get images that need to be downloaded"""
         if not self._db:
             raise RuntimeError("Database not initialized")
-        cursor = await self._db.execute(
-            """
+        cursor = await self._db.execute("""
             SELECT url, page_url
             FROM images
             WHERE downloaded = FALSE AND error_message IS NULL
-        """
-        )
+        """)
         rows = await cursor.fetchall()
         return [dict(row) for row in rows]
 
@@ -394,15 +384,13 @@ class StateManager:
         page_stats = dict(row)
 
         # Image statistics
-        cursor = await self._db.execute(
-            """
+        cursor = await self._db.execute("""
             SELECT
                 COUNT(*) as total,
                 SUM(CASE WHEN downloaded = TRUE THEN 1 ELSE 0 END) as downloaded,
                 SUM(CASE WHEN error_message IS NOT NULL THEN 1 ELSE 0 END) as failed
             FROM images
-        """
-        )
+        """)
         row = await cursor.fetchone()
         if not row:
             raise RuntimeError("Failed to fetch image statistics")
