@@ -71,7 +71,7 @@ pydantic_core==2.33.2
 pyee==13.0.0
 Pygments==2.20.0
 pytest==9.0.3
-pytest-asyncio==1.0.0
+pytest-asyncio==1.4.0
 pytest-cov==6.2.1
 python-dotenv==1.2.2
 python-gitlab==6.0.0
