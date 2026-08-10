@@ -73,7 +73,7 @@ Pygments==2.19.1
 pytest==8.4.0
 pytest-asyncio==1.0.0
 pytest-cov==6.2.1
-python-dotenv==1.1.0
+python-dotenv==1.2.2
 python-gitlab==6.0.0
 python-semantic-release==10.1.0
 PyYAML==6.0.2
