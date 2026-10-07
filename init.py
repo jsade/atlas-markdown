@@ -337,28 +337,6 @@ omit = ["tests/*", "venv/*"]
     print_success("Configuration files created")
 
 
-def create_requirements_file() -> None:
-    """Create requirements.txt from installed packages"""
-    print_info("Creating requirements.txt...")
-
-    # Use venv pip
-    pip = "./venv/bin/pip" if platform.system() != "Windows" else "./venv/Scripts/pip"
-
-    if not Path(pip).exists():
-        print_error(f"Pip not found at {pip}")
-        print_info("Please ensure the virtual environment is properly created")
-        sys.exit(1)
-
-    # Get installed packages
-    result = subprocess.run([pip, "freeze"], capture_output=True, text=True)
-
-    # Write requirements.txt
-    with open("requirements.txt", "w") as f:
-        f.write(result.stdout)
-
-    print_success("requirements.txt created")
-
-
 def verify_main_script() -> None:
     """Verify the main CLI module exists"""
     print_info("Verifying main CLI module...")
@@ -438,7 +416,6 @@ def main() -> None:
         # Project setup
         create_project_structure()
         create_configuration_files()
-        create_requirements_file()
         verify_main_script()
         setup_pre_commit()
 
