@@ -142,7 +142,7 @@ async def test_create_index(file_manager: FileSystemManager) -> None:
     with open(index_path) as f:
         content = f.read()
 
-    assert "# Documentation Index" in content
+    assert "# Table of Contents" in content
     assert "Page 1" in content
     assert "Page 2" in content
     # Only docs/ content is included in the index
