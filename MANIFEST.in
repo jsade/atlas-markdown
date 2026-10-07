@@ -1,0 +1,3 @@
+prune docs
+prune .github
+exclude TODO.md run.sh init.py .pre-commit-config.yaml .env.development.example pyrightconfig.json
