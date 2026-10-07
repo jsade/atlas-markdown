@@ -90,7 +90,6 @@ def test_project_structure() -> bool:
         ("utils", "Utility scripts"),
         (".gitignore", "Git ignore file"),
         ("pyproject.toml", "Project configuration"),
-        ("requirements.txt", "Python dependencies"),
         ("scraper.py", "Main scraper script"),
         (".env.development.example", "Development environment template"),
     ]
@@ -275,7 +274,7 @@ def main() -> None:
     else:
         print("✗ Some tests failed.")
         print("\nTroubleshooting:")
-        print("1. Run: pip install -r requirements.txt")
+        print('1. Run: pip install -e ".[dev]"')
         print("2. Run: playwright install chromium")
         print("3. Set environment variables in your shell configuration")
         print("4. Check the project structure matches expected layout")
