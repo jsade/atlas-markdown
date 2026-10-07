@@ -62,7 +62,7 @@ playwright==1.52.0
 pluggy==1.6.0
 pre_commit==4.2.0
 prompt_toolkit==3.0.51
-propcache==0.3.2
+propcache==0.5.4
 psutil==7.0.0
 ptyprocess==0.7.0
 pure_eval==0.2.3
