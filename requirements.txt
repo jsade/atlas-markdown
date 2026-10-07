@@ -72,7 +72,7 @@ pyee==13.0.0
 Pygments==2.19.1
 pytest==8.4.0
 pytest-asyncio==1.0.0
-pytest-cov==6.2.1
+pytest-cov==7.1.0
 python-dotenv==1.1.0
 python-gitlab==6.0.0
 python-semantic-release==10.1.0
