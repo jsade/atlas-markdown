@@ -7,7 +7,7 @@ import hashlib
 import logging
 from pathlib import Path
 from typing import Any
-from urllib.parse import unquote, urlparse
+from urllib.parse import unquote, urljoin, urlparse
 
 import aiofiles
 import httpx
@@ -145,9 +145,11 @@ class ImageDownloader:
                     )
 
                     if response.is_redirect:
-                        current_url = response.headers.get("Location", "")
-                        if not current_url:
+                        location = response.headers.get("Location", "")
+                        if not location:
                             return False, None, "Empty redirect location"
+                        # Location may be relative; resolve it against the current URL
+                        current_url = urljoin(current_url, location)
                         redirect_count += 1
                         continue
                     else:

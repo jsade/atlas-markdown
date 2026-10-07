@@ -130,10 +130,11 @@ class FileSystemManager:
         # Check disk space first (require at least 100MB free)
         try:
             stat = shutil.disk_usage(self.output_dir)
-            if stat.free < 100 * 1024 * 1024:
-                raise OSError(f"Insufficient disk space: only {stat.free / 1024 / 1024:.1f}MB free")
         except Exception as e:
             logger.warning(f"Could not check disk space: {e}")
+        else:
+            if stat.free < 100 * 1024 * 1024:
+                raise OSError(f"Insufficient disk space: only {stat.free / 1024 / 1024:.1f}MB free")
 
         # Validate path to prevent traversal attacks
         try:
@@ -149,8 +150,8 @@ class FileSystemManager:
         if len(str(file_path)) > 250:
             # Truncate filename while preserving extension
             name_hash = hashlib.md5(url.encode()).hexdigest()[:8]
-            base = filename[:100]  # Keep first 100 chars
             ext = Path(filename).suffix
+            base = Path(filename).stem[:100]  # Keep first 100 chars of the name
             filename = f"{base}_{name_hash}{ext}"
             file_path = directory / filename
             logger.debug(f"Truncated long filename to: {filename}")

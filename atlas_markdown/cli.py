@@ -338,6 +338,10 @@ def setup_logging(verbose: bool, env_config: dict[str, Any]) -> None:
     logging.getLogger("playwright").setLevel(logging.WARNING)
 
 
+class RuntimeLimitExceededError(RuntimeError):
+    """Raised by the health monitor when ATLAS_MD_MAX_RUNTIME_MINUTES is reached"""
+
+
 class DocumentationScraper(ThrottledScraper):
     """Main scraper orchestrator"""
 
@@ -376,6 +380,7 @@ class DocumentationScraper(ThrottledScraper):
         self.circuit_breaker = CircuitBreaker(failure_threshold=10, recovery_timeout=300)
         self.logger = logging.getLogger(__name__)
         self.failed_pages_count = 0
+        self.abort_error: RuntimeError | None = None
 
         # Safety constraints from environment
         self.max_consecutive_failures = env_config["ATLAS_MD_MAX_CONSECUTIVE_FAILURES"]
@@ -434,68 +439,91 @@ class DocumentationScraper(ThrottledScraper):
                     f"Link resolver loaded with {self.link_resolver.get_stats()['url_mappings']} mappings"
                 )
 
-                # Start health monitoring task
+                # Start health monitoring task alongside the scraping phases so that a
+                # runtime-limit error raised by the monitor stops the work immediately
                 health_task = asyncio.create_task(self._periodic_health_check())
+                work_task = asyncio.create_task(self._run_phases(run_id))
 
                 try:
-                    # Reset any in-progress pages if resuming
-                    if self.config["resume"]:
-                        await self.state_manager.reset_in_progress()
-                        console.print("[yellow]Resuming from previous state...[/yellow]")
-                    else:
-                        # Clear previous state for fresh run
-                        await self.state_manager.clear_all()
-                        console.print("[green]Starting fresh scrape...[/green]")
-
-                    # Phase 1: Discover pages
-                    if not self.config["dry_run"]:
-                        await self.discover_pages()
-                    else:
-                        console.print("[yellow]Dry run - skipping discovery[/yellow]")
-
-                    # Phase 2: Scrape pages
-                    await self.scrape_pages()
-
-                    # Phase 3: Download images
-                    if not self.config["dry_run"]:
-                        await self.download_images()
-
-                    # Phase 4: Final retry for failed pages
-                    if not self.config["dry_run"]:
-                        await self.retry_failed_pages()
-
-                    # Phase 5: Generate index
-                    await self.generate_index()
-
-                    # Phase 6: Fix all wiki links with proper filenames
-                    if not self.config["dry_run"]:
-                        await self.fix_wiki_links()
-
-                    # Phase 7: Lint all markdown files
-                    if not self.config["dry_run"] and self.config.get("lint", True):
-                        await self.lint_markdown_files()
-
-                    # Complete the run
-                    await self.state_manager.complete_run(run_id)
-
+                    await asyncio.wait(
+                        {work_task, health_task}, return_when=asyncio.FIRST_COMPLETED
+                    )
+                    # Check the monitor first: it may have hit the runtime limit in the
+                    # same tick the work finished, and that error must not be dropped
+                    if health_task.done() and not health_task.cancelled():
+                        limit_error = health_task.exception()
+                        if limit_error is not None:
+                            await self._stop_work_task(work_task)
+                            await self.state_manager.reset_in_progress()
+                            raise limit_error
+                    work_task.result()
+                except asyncio.CancelledError:
+                    console.print("\n[yellow]Scraping cancelled, saving state...[/yellow]")
+                    await self._stop_work_task(work_task)
+                    await self.state_manager.reset_in_progress()
+                    raise
                 finally:
-                    # Stop health monitoring
+                    # Stop health monitoring; any error it raised was handled above
                     health_task.cancel()
-                    try:
-                        await health_task
-                    except asyncio.CancelledError:
-                        pass
+                    await asyncio.wait({health_task})
+                    if not health_task.cancelled():
+                        health_task.exception()
 
                 # Show final statistics
                 await self.show_statistics()
 
-        except asyncio.CancelledError:
-            console.print("\n[yellow]Scraping cancelled, saving state...[/yellow]")
-            await self.state_manager.reset_in_progress()
-            raise
         except Exception as e:
             self.logger.error(f"Fatal error in scraper: {e}", exc_info=True)
             raise
+
+    async def _stop_work_task(self, work_task: "asyncio.Task[None]") -> None:
+        """Cancel the phases task and wait for it without swallowing our own cancellation"""
+        work_task.cancel()
+        await asyncio.wait({work_task})
+        if not work_task.cancelled() and work_task.exception() is not None:
+            self.logger.warning(f"Error while stopping scraper: {work_task.exception()}")
+
+    async def _run_phases(self, run_id: int) -> None:
+        """Run all scraping phases in order"""
+        # Reset any in-progress pages if resuming
+        if self.config["resume"]:
+            await self.state_manager.reset_in_progress()
+            console.print("[yellow]Resuming from previous state...[/yellow]")
+        else:
+            # Clear previous state for fresh run
+            await self.state_manager.clear_all()
+            console.print("[green]Starting fresh scrape...[/green]")
+
+        # Phase 1: Discover pages
+        if not self.config["dry_run"]:
+            await self.discover_pages()
+        else:
+            console.print("[yellow]Dry run - skipping discovery[/yellow]")
+
+        # Phase 2: Scrape pages
+        await self.scrape_pages()
+
+        # Phase 3: Download images
+        if not self.config["dry_run"]:
+            await self.download_images()
+
+        # Phase 4: Final retry for failed pages
+        if not self.config["dry_run"]:
+            await self.retry_failed_pages()
+
+        # Phase 5: Generate index
+        await self.generate_index()
+
+        # Phase 6: Fix all wiki links with proper filenames
+        if not self.config["dry_run"]:
+            await self.fix_wiki_links()
+
+        # Phase 7: Lint all markdown files
+        if not self.config["dry_run"] and self.config.get("lint", True):
+            await self.lint_markdown_files()
+
+        # Complete the run
+        await self.state_manager.complete_run(run_id)
 
     async def _periodic_health_check(self) -> None:
         """Periodically check system health and runtime constraints"""
@@ -513,7 +541,7 @@ class DocumentationScraper(ThrottledScraper):
                         console.print(
                             f"\n[yellow]Runtime limit of {self.max_runtime_minutes} minutes reached. Stopping scraper...[/yellow]"
                         )
-                        raise RuntimeError(
+                        raise RuntimeLimitExceededError(
                             f"Runtime limit of {self.max_runtime_minutes} minutes exceeded"
                         )
 
@@ -535,8 +563,8 @@ class DocumentationScraper(ThrottledScraper):
 
             except asyncio.CancelledError:
                 break
-            except RuntimeError:
-                raise  # Re-raise runtime limit errors
+            except RuntimeLimitExceededError:
+                raise
             except Exception as e:
                 self.logger.error(f"Health check error: {e}")
 
@@ -677,6 +705,8 @@ class DocumentationScraper(ThrottledScraper):
 
             async def process_page(page_info: dict[str, Any]) -> None:
                 async with semaphore:
+                    if self.abort_error:
+                        return
                     url = page_info["url"]
                     await self.scrape_single_page(url)
                     progress.update(task, advance=1)
@@ -684,6 +714,9 @@ class DocumentationScraper(ThrottledScraper):
             # Create tasks for all pages
             tasks = [process_page(page) for page in pending]
             await asyncio.gather(*tasks, return_exceptions=True)
+
+        if self.abort_error:
+            raise self.abort_error
 
     async def scrape_single_page(self, url: str) -> None:
         """Scrape a single page with circuit breaker"""
@@ -873,7 +906,7 @@ class DocumentationScraper(ThrottledScraper):
                     )
 
             # Track images for later download
-            images = self.parser.get_images()
+            images = (sibling_info or {}).get("image_urls", set())
             for img_url in images:
                 await self.state_manager.add_image(img_url, url)
 
@@ -928,7 +961,8 @@ class DocumentationScraper(ThrottledScraper):
                 self.logger.error(
                     f"Too many consecutive failures ({self.failed_pages_count}), stopping"
                 )
-                raise RuntimeError("Too many consecutive page failures") from e
+                self.abort_error = RuntimeError("Too many consecutive page failures")
+                raise self.abort_error from e
 
     async def download_images(self) -> None:
         """Download all images"""
@@ -1034,6 +1068,8 @@ class DocumentationScraper(ThrottledScraper):
 
             async def retry_page(page_info: dict[str, Any]) -> None:
                 async with semaphore:
+                    if self.abort_error:
+                        return
                     url = page_info["url"]
                     retry_count = page_info.get("retry_count", 0)
 
@@ -1056,6 +1092,9 @@ class DocumentationScraper(ThrottledScraper):
             # Create tasks for all failed pages
             tasks = [retry_page(page) for page in failed_pages]
             await asyncio.gather(*tasks, return_exceptions=True)
+
+        if self.abort_error:
+            raise self.abort_error
 
         # Show results
         final_failed = await self.state_manager.get_failed_pages()

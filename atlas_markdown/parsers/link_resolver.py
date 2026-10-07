@@ -290,8 +290,8 @@ class LinkResolver:
                     else:
                         return f"[[{filename}|{text}]]"
 
-                # Also check if the URL contains the target as a slug
-                if target in url.lower():
+                # Also check if the URL ends with the target as a full slug
+                if url.lower().rstrip("/").endswith("/" + target_lower):
                     if current_page_path:
                         relative_link = self._calculate_relative_path(current_page_path, filepath)
                         logger.debug(
