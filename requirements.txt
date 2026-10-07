@@ -10,7 +10,7 @@ asttokens==3.0.0
 attrs==25.3.0
 beautifulsoup4==4.13.4
 black==26.3.1
-certifi==2025.6.15
+certifi==2026.7.22
 cfgv==3.4.0
 charset-normalizer==3.4.2
 click==8.5.0
