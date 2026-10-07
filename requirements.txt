@@ -101,7 +101,7 @@ types-psutil==7.0.0.20250601
 types-PyYAML==6.0.12.20250516
 types-setuptools==80.9.0.20250529
 types-tqdm==4.67.0.20250516
-typing-inspection==0.4.1
+typing-inspection==0.4.4
 typing_extensions==4.14.0
 urllib3==2.6.3
 virtualenv==20.31.2
