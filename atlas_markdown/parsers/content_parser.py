@@ -24,6 +24,7 @@ class ContentParser:
     def __init__(self, base_url: str, no_h1_headings: bool = False):
         self.base_url = base_url.rstrip("/")
         self.image_urls: set[str] = set()
+        self.current_page_description: str | None = None
         self.sibling_parser = SiblingNavigationParser(base_url)
         self.no_h1_headings = no_h1_headings
 
@@ -39,6 +40,7 @@ class ContentParser:
 
         # Extract content without sibling info (we already have it)
         content_html, title = self._extract_content_and_title(html, page_url)
+        self._attach_page_state(sibling_info)
 
         # Add breadcrumb data to sibling info
         soup = BeautifulSoup(html, "html.parser")
@@ -144,9 +146,20 @@ class ContentParser:
 
         return metadata
 
+    def _attach_page_state(self, sibling_info: dict[str, Any]) -> None:
+        """Copy per-page extraction results into sibling_info.
+
+        The parser instance is shared by concurrent workers, so per-page values must
+        travel with the page's own data instead of living only on ``self``.
+        """
+        sibling_info["page_description"] = self.current_page_description
+        sibling_info["image_urls"] = set(self.image_urls)
+
     def _extract_content_and_title(self, html: str, page_url: str) -> tuple[str | None, str | None]:
         """Extract main content and title from HTML (internal method without sibling info)"""
         soup = BeautifulSoup(html, "html.parser")
+        # Reset per-page state so images from earlier pages are not reported again
+        self.image_urls = set()
 
         # First try to get metadata from initial state
         state_metadata = self._extract_metadata_from_initial_state(html)
@@ -227,6 +240,7 @@ class ContentParser:
 
         # Extract content and title
         content_html, title = self._extract_content_and_title(html, page_url)
+        self._attach_page_state(sibling_info)
 
         # Add breadcrumb data to sibling info
         soup = BeautifulSoup(html, "html.parser")
@@ -624,9 +638,12 @@ class ContentParser:
                 frontmatter["childList"] = page_metadata["childList"]
 
         # Also add description from current page extraction if available
-        if hasattr(self, "current_page_description") and self.current_page_description:
-            if not frontmatter.get("description"):
-                frontmatter["description"] = self.current_page_description
+        if sibling_info is not None and "page_description" in sibling_info:
+            page_description = sibling_info["page_description"]
+        else:
+            page_description = self.current_page_description
+        if page_description and not frontmatter.get("description"):
+            frontmatter["description"] = page_description
 
         # Extract product from URL
         product = self._extract_product_from_url(page_url)

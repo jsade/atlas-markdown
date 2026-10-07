@@ -470,12 +470,17 @@ class MarkdownLinter:
         """Fix list indentation to ensure lists start at column 0."""
         lines = content.split("\n")
         fixed_lines = []
+        in_code = self._code_block_lines(lines)
 
         for i, line in enumerate(lines):
+            # Never touch lines inside fenced code blocks (e.g. YAML examples)
+            if in_code[i]:
+                fixed_lines.append(line)
+                continue
+
             # Check if this line is a list item with leading whitespace
             match = re.match(r"^(\s+)([-*+])\s+(.*)$", line)
             if match:
-                match.group(1)
                 marker = match.group(2)
                 content_text = match.group(3)
 
@@ -500,6 +505,7 @@ class MarkdownLinter:
     def _fix_list_empty_lines(self, content: str) -> str:
         """Remove empty lines between list items."""
         lines = content.split("\n")
+        in_code = self._code_block_lines(lines)
         fixed_lines = []
         i = 0
 
@@ -507,7 +513,7 @@ class MarkdownLinter:
             line = lines[i]
 
             # Check if this is a list item (bullet or numbered)
-            is_list_item = re.match(r"^([-*+]|\d+\.)\s+", line.strip())
+            is_list_item = not in_code[i] and re.match(r"^([-*+]|\d+\.)\s+", line.strip())
 
             if is_list_item:
                 # Add the list item
@@ -525,7 +531,7 @@ class MarkdownLinter:
                         # Empty line
                         empty_lines_count += 1
                         j += 1
-                    elif re.match(r"^([-*+]|\d+\.)\s+", next_stripped):
+                    elif not in_code[j] and re.match(r"^([-*+]|\d+\.)\s+", next_stripped):
                         # Found another list item after empty line(s)
                         if empty_lines_count > 0:
                             # Skip the empty lines
@@ -561,13 +567,14 @@ class MarkdownLinter:
     def _fix_numbered_list_sequence(self, content: str) -> str:
         """Fix numbered list sequences to be consecutive (1, 2, 3, etc.)."""
         lines = content.split("\n")
+        in_code = self._code_block_lines(lines)
         fixed_lines = []
         current_number = 0
         in_numbered_list = False
 
         for i, line in enumerate(lines):
             # Check if this is a numbered list item
-            match = re.match(r"^(\d+)\.\s+(.*)$", line.strip())
+            match = None if in_code[i] else re.match(r"^(\d+)\.\s+(.*)$", line.strip())
 
             if match:
                 old_number = match.group(1)
@@ -607,6 +614,42 @@ class MarkdownLinter:
                 fixed_lines.append(line)
 
         return "\n".join(fixed_lines)
+
+    @staticmethod
+    def _code_block_lines(lines: list[str]) -> list[bool]:
+        """Mark which lines belong to fenced code blocks, fence lines included.
+
+        A block closes only on a fence of the same character that is at least as
+        long as the opener, so a ``` line inside a ~~~ block stays code. As in
+        CommonMark, an opener with no matching closer runs to the end of the
+        document, since everything after it renders as code.
+        """
+        fences = [re.match(r"^\s*(`{3,}|~{3,})(.*)$", line) for line in lines]
+        mask = [False] * len(lines)
+        i = 0
+        while i < len(lines):
+            opener = fences[i]
+            if opener is None or (opener.group(1)[0] == "`" and "`" in opener.group(2)):
+                i += 1
+                continue
+            fence = opener.group(1)
+            close = next(
+                (
+                    j
+                    for j in range(i + 1, len(lines))
+                    if (m := fences[j])
+                    and m.group(1)[0] == fence[0]
+                    and len(m.group(1)) >= len(fence)
+                    and not m.group(2).strip()
+                ),
+                None,
+            )
+            if close is None:
+                close = len(lines) - 1
+            for j in range(i, close + 1):
+                mask[j] = True
+            i = close + 1
+        return mask
 
     def _ensure_final_newline(self, content: str) -> str:
         """Ensure file ends with a newline."""
